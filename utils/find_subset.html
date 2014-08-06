@@ -1,0 +1,109 @@
+<html>
+<head>
+<script src="http://cdnjs.cloudflare.com/ajax/libs/lodash.js/2.4.1/lodash.js"></script>
+<title>Find a Subset having sum</title>
+</head>
+<body>
+  <div>
+    <h3>Find a subset of numbers, having a desired sum.</h3>
+    All calculations are done in your browser.
+  </div>
+  <div style="float:left;">
+    <h3>Input</h3>
+    <div>Paste in your numbers, one per line<br>
+      (Digits and decimal places only, no dollar signs or commas):<br>
+      <textarea id="numbers" rows="10"></textarea>
+    </div>
+    <div>Desired sum: <input id="desiredSum" type="text"/></div>
+    <div>Decimal places: <input id="decimalPlaces" type="text" size="3"/></div>
+    <button onclick="go()">Find Subset -&gt;</button>
+    <div id="numberStats"></div>
+  </div>
+  <div style="float:left;padding-left:3em;">
+    <h3>Results</h3>
+    <div>Tries: <span id="tries"></span></div>
+    <h4>Matching Subset <span id="subsetLength"></span>:</h4>
+    <textarea id="matchingSubset" rows="20"></textarea>
+  </div>
+</body>
+<script language="javascript"> 
+
+  function sum(numbers) {
+    return _(numbers).reduce(function(s, num) { return s + num; });
+  }
+
+  // Finds a subset of the given numbers that have the desired sum.
+  // Returns a tuple containing the matching subset (or false if none found), and the number of combinations that were tested.
+  function findSubset(numbers, desiredSum, decimalPlaces) {
+    var tries = 0;
+    var findSubsetInternal = function(selectedSubset, remainingAmountNeeded, remainingValues) {
+      tries += 1;
+
+      // TODO: expose decimalPlaces as a parameter
+      remainingAmountNeeded = +remainingAmountNeeded.toFixed(decimalPlaces);
+
+      if (remainingAmountNeeded < 0) {
+        return false;
+      }
+      if (remainingAmountNeeded == 0) {
+        return selectedSubset;
+      }
+      if (_.min(remainingValues) > remainingAmountNeeded) {
+        return false;
+      }
+
+      var remainingValuesClone = remainingValues.slice(0);
+      while(remainingValuesClone.length > 0) {
+        var x = remainingValuesClone.pop();
+        var result = findSubsetInternal(selectedSubset.concat([x]), remainingAmountNeeded - x, remainingValuesClone);
+        if (result) {
+          return result;
+        }
+      }
+      
+      return false;
+    }
+
+    return [findSubsetInternal([], desiredSum, numbers), tries];
+  }
+   
+  // var numbers = [2109.60, 9169.40, 4814.01, 91.00, 5019.10, 115.00, 2518.00, 2593.00, 1566.50, 2127.00, 1610.00, 1471.00, 1145.00, 2105.41, 1505.00, 8.50, 2801.83, 119.00, 526.57, 1480.00, 2290.50, 3606.33, 3791.64, 452.58, 1025.00, 2094.80, 1700.00, 2680.00, 2285.88, 2176.15, 1516.00, 1358.50, 2167.00, 3484.83, 600.00, 2317.65, 2026.00, 2728.65, 2214.00, 1945.00, 1691.50, 2632.73, 1791.00, 2757.65, 1872.65, 2574.90, 2349.64, 3070.05, 146.36, 1429.00, 1902.80, 1519.00, 1787.50, 1468.00, 43.00, 266.50, 1528.50, 2267.44, 350.00, 17.00, 1709.00, 1528.50, 76.50, 1513.00, 1563.50, 1378.00, 35.50, 1489.00, 1728.00, 1420.00, 137.00, 2085.30, 82.00, 875.00, 47.00, 1175.00, 35.00, 142.00, 90.00, 83.00, 102.00, 128.50, 85.00, 59.26, 60.00, 22.00, 11.00, 94.00, 71.50, 17.00, 136.00, 47.50, 144.00, 25.00, 81.50, 51.50, 36.00, 130.00, 93.00, 109.50, 136.50, 57.00, 156.00, 93.00, 80.00, 146.00, 177.00, 134.50, 77.50, 37.00, 109.00, 68.50, 118.50, 144.00, 100.00];
+  // var desiredSum = "21081.97"
+  var numbers = [1,2,3,4,5];
+  var desiredSum = 6;
+  document.getElementById("numbers").value = _(numbers).join('\n');
+  document.getElementById("desiredSum").value = desiredSum;
+
+  document.getElementById("decimalPlaces").value = 2;
+
+  function go() {
+    //numbers = numbers.sort(function(a,b){return a-b});
+    var numbers = _(document.getElementById("numbers").value.split("\n")).map(parseFloat).compact().valueOf()
+    var desiredSum   = parseFloat(document.getElementById("desiredSum").value);
+    var decimalPlaces = parseInt(document.getElementById("decimalPlaces").value);
+    console.log("numbers",       numbers);
+    console.log("desiredSum",    desiredSum);
+    console.log("decimalPlaces", decimalPlaces);
+
+    document.getElementById("numberStats").innerHTML = ""+numbers.length+" numbers provided<br>total sum: "+sum(numbers)    
+
+    var result = findSubset(numbers, desiredSum, decimalPlaces);
+    var subset = result[0];
+    var tries  = result[1];
+    console.log("subset", subset);
+    console.log("tries", tries);
+
+    document.getElementById("tries").innerText = tries;
+
+    var subsetElem = document.getElementById("matchingSubset");
+    if (subset) {
+      document.getElementById("subsetLength").innerText = "("+subset.length+" numbers)";
+      subsetElem.innerText = _(subset).join("\n");
+      subsetElem.select();      
+    } else {
+      document.getElementById("subsetLength").innerText = "(Nothing found!)"
+      subsetElem.innerText = "";
+    }
+  }
+</script>
+<html>
