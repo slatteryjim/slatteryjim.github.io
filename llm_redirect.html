@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ChatGPT Prompt Redirector</title>
+    <script type="text/javascript">
+        function processParameters() {
+            // Get the query parameters from the URL
+            var params = new URLSearchParams(window.location.search);
+            var template = params.get('template') || 'default';
+            var input = params.get('input') || '';
+
+            console.log("Input prompt:", input);
+            console.log("Template:", template);
+
+            // Reference to the documentation and message containers
+            var documentationDiv = document.getElementById('documentation');
+            var messageDiv = document.getElementById('message');
+
+            // If the input is empty, do nothing (the documentation is already displayed)
+            if (input === "") {
+                // Optionally, you could focus on the documentation or provide additional messages
+                return;
+            }
+
+            // Hide the documentation since we have input to process
+            documentationDiv.style.display = 'none';
+
+            // Clear previous messages
+            messageDiv.innerHTML = '';
+
+            // Construct the prompt based on the template
+            let prompt;
+            switch (template) {
+                case 'translate':
+                    prompt = "Please translate the following text: " + input;
+                    break;
+                case 'explain':
+                    prompt = "Please explain the following sentence: " + input;
+                    break;
+                case 'summarize':
+                    prompt = "Please summarize the following text: " + input;
+                    break;
+                // Add more templates as needed
+                default:
+                    prompt = "Here is the user's input: " + input;
+            }
+
+            // Construct the new URL
+            var newUrl = 'https://chatgpt.com/?q=' + encodeURIComponent(prompt);
+
+            // Display the redirect message
+            var redirectingPara = document.createElement('p');
+            redirectingPara.textContent = 'Redirecting...';
+            messageDiv.appendChild(redirectingPara);
+
+            // Create a clickable link
+            var linkPara = document.createElement('p');
+            var link = document.createElement('a');
+            link.href = newUrl;
+            link.textContent = newUrl;
+            linkPara.appendChild(link);
+            messageDiv.appendChild(linkPara);
+
+            // Optionally, uncomment the following line to automatically redirect
+            // window.location.href = newUrl;
+        }
+
+        // Execute processParameters on page load
+        window.onload = function() {
+            processParameters();
+        };
+    </script>
+</head>
+<body>
+    <div id="documentation">
+        <h2>Welcome to the ChatGPT Prompt Redirector</h2>
+        <p>This page redirects to ChatGPT with a prefilled prompt based on the template and input you provide via URL query parameters.</p>
+        <h3>How to Use:</h3>
+        <p>Use the following query parameters in the URL:</p>
+        <ul>
+            <li><strong>template</strong>: The name of the prompt template you want to use.</li>
+            <li><strong>input</strong>: The text you want to include in the prompt.</li>
+        </ul>
+        <p>Example URL structure:</p>
+        <p><code>yourpage.html?template=templateName&input=yourText</code></p>
+        <h3>Available Templates:</h3>
+        <ul>
+            <li>
+                <strong>translate</strong>: Translates the input text.
+                <br>
+                Example: <a href="?template=translate&input=你好">Translate "你好"</a>
+            </li>
+            <li>
+                <strong>explain</strong>: Explains the input sentence.
+                <br>
+                Example: <a href="?template=explain&input=This%20is%20a%20complex%20sentence.">Explain "This is a complex sentence."</a>
+            </li>
+            <li>
+                <strong>summarize</strong>: Summarizes the input text.
+                <br>
+                Example: <a href="?template=summarize&input=Artificial%20intelligence%20is%20the%20simulation%20of%20human%20intelligence%20processes%20by%20machines.">Summarize a text</a>
+            </li>
+        </ul>
+        <h3>Default Behavior:</h3>
+        <p>If no template is specified, the default prompt will be used.</p>
+        <p>Example: <a href="?input=Just%20some%20text.">Default prompt with "Just some text."</a></p>
+    </div>
+    <div id="message"></div>
+</body>
+</html>
