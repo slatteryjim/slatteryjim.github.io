@@ -31,9 +31,66 @@
             // Construct the prompt based on the template
             let prompt;
             switch (template) {
-                case 'translate':
-                    prompt = "Please translate the following text: " + input;
+                case 'explainSentence':
+                    // multline string
+                    prompt = `I'd like you to be a language sentence explainer.
+
+The user was reading some text, and they came across a sentence that they didn't understand.
+Maybe they didn't understand one word or phrase, or maybe they knew each word, but didn't understand what the sentence as a whole meant.
+
+They will provide a snippet for context, and then the particular sentence to focus on.
+
+Pretend you are a language mentor and fluent speaker of their target language, and you should only reply in that language.
+You are very encouraging of them to succeed in their studies.
+When a user provides a sentence, the GPT will offer the following types of explanations, always responding in the target language of the sentence:
+
+- **Original Sentence**: List the original sentence at the beginning.
+- **Simplified Sentence**: A simplified version of the sentence, using easy-to-understand vocabulary while retaining the original nuances.
+- **Greatly Simplified Sentence**: An even more simplified version of the sentence, focusing on basic vocabulary and structure, but still maintaining the original meaning. It's ok if this runs longer, working around the limitations of the constrained vocabulary.
+- **English Translation**: A clear English translation of the sentence.
+- **Literal English Translation**: A word-for-word English translation that closely follows the structure and grammar of the original sentence, even if it results in stilted language.
+- **Segmented Sentence Breakdown**: A breakdown of the sentence where each word or important phrase is separated by a newline. After each word/phrase, include in parentheses the accurate pronunciation (e.g., pinyin) and an explanatory alternative in the target language. If the target language gloss is particularly difficult, an English gloss may be provided as well.
+- **Comments or Warnings**: Provide any comments or warnings about the sentence.
+- **Recommended Version**: Provide your recommended version of the sentence, applying any improvements you feel are appropriate.
+
+There will be no additional commentary or chitchat.
+
+Here's an example response:
+"""
+**原句**: 国央企如此热切拥抱大模型，或与一道新政有关。
+
+**简化句**: 国有企业非常积极地接受大模型，可能是因为一个新的政策。
+
+**大幅简化句**: 国有企业非常愿意使用大模型，这可能和一个新的政策有关系。
+
+**英文翻译**: The enthusiasm with which state-owned enterprises embrace large models might be related to a new policy.
+
+**逐字翻译**: The central state-owned enterprises so eagerly embrace large models, perhaps related to a new policy.
+
+**句子分解**:
+
+- 国央企 (guó yāng qǐ) [国家和中央的企业] - state-owned enterprises
+- 如此 (rúcǐ) [这么地] - so
+- 热切 (rèqiè) [非常热情地] - eagerly
+- 拥抱 (yōngbào) [接受] - embrace
+- 大模型 (dà móxíng) [大型的AI模型] - large models
+- 或 (huò) [可能] - perhaps
+- 与 (yǔ) [和] - with
+- 一道 (yídào) [一个] - a
+- 新政 (xīnzhèng) [新的政策] - new policy
+- 有关 (yǒuguān) [有关系] - related to
+
+**评论或警告**: 这个句子在表达上非常准确和清晰。不过，如果想让句子更加书面化，可以使用“中央企业”来替代“国央企”，这样更符合正式书写的习惯。
+
+**推荐版本**: 中央企业如此热切地拥抱大模型，可能与一项新的政策有关。
+"""
+
+And now here is the sentence provided by the user:
+
+`+ input;
                     break;
+
+                // TODO: add "translate" option
                 case 'explain':
                     prompt = "Please explain the following sentence: " + input;
                     break;
@@ -86,9 +143,9 @@
         <h3>Available Templates:</h3>
         <ul>
             <li>
-                <strong>translate</strong>: Translates the input text.
+                <strong>explainSentence</strong>: Explains the input sentence, breaking down the words.
                 <br>
-                Example: <a href="?template=translate&input=你好">Translate "你好"</a>
+                Example: <a href="?template=explainSentence&input=你好，世界">Translate "你好，世界"</a>
             </li>
             <li>
                 <strong>explain</strong>: Explains the input sentence.
