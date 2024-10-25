@@ -13,19 +13,25 @@
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
+            background-color: #fafafa;
         }
         textarea {
             width: 100%;
             height: 150px;
+            padding: 10px;
+            box-sizing: border-box;
+            resize: vertical;
         }
-        input[type="text"] {
+        input[type="text"], input[type="password"] {
             width: 100%;
             padding: 8px;
             margin-top: 10px;
+            box-sizing: border-box;
         }
         button {
             padding: 10px 20px;
             margin-top: 10px;
+            cursor: pointer;
         }
         .sentence {
             background-color: #f0f0f0;
@@ -37,6 +43,22 @@
             color: red;
             margin-top: 10px;
         }
+        .logs {
+            background-color: #e8e8e8;
+            padding: 10px;
+            margin-top: 20px;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin-bottom: 10px;
+        }
+        .toggle-button {
+            margin-left: 10px;
+            padding: 5px 10px;
+            font-size: 0.9em;
+        }
     </style>
 </head>
 <body>
@@ -44,27 +66,48 @@
 
     <!-- Your TypeScript and JSX Code -->
     <script type="text/babel" data-type="module" data-presets="env,react,typescript">
-        // Ensure Babel uses the necessary presets
-        // This configuration might vary based on Babel's setup
-
         const { useState, useEffect } = React;
 
         const SentenceSplitter = () => {
+            // State variables
             const [text, setText] = useState('');
             const [apiKey, setApiKey] = useState('');
             const [sentences, setSentences] = useState([]);
             const [loading, setLoading] = useState(false);
             const [error, setError] = useState(null);
+            const [logs, setLogs] = useState([]);
+            const [showApiKey, setShowApiKey] = useState(false);
 
-            // Load API key from URL hash if present
+            // Load API key from localStorage or URL hash on initial render
             useEffect(() => {
-                const hash = window.location.hash.substring(1);
-                if (hash.startsWith('apiKey=')) {
-                    const key = decodeURIComponent(hash.split('=')[1]);
-                    setApiKey(key);
+                // Attempt to load from localStorage
+                const storedApiKey = localStorage.getItem('openai_api_key');
+                if (storedApiKey) {
+                    setApiKey(storedApiKey);
+                } else {
+                    // Fallback to URL hash
+                    const hash = window.location.hash.substring(1);
+                    if (hash.startsWith('apiKey=')) {
+                        const key = decodeURIComponent(hash.split('=')[1]);
+                        setApiKey(key);
+                        localStorage.setItem('openai_api_key', key);
+                    }
                 }
             }, []);
 
+            // Function to handle API key changes
+            const handleApiKeyChange = (e) => {
+                const value = e.target.value;
+                setApiKey(value);
+                localStorage.setItem('openai_api_key', value);
+            };
+
+            // Function to toggle API key visibility
+            const toggleApiKeyVisibility = () => {
+                setShowApiKey(!showApiKey);
+            };
+
+            // Function to handle form submission
             const handleSubmit = async (e) => {
                 e.preventDefault();
                 setError(null);
@@ -85,6 +128,15 @@
                     // Prepare the prompt for splitting into sentences
                     const prompt = `Split the following text into an array of individual sentences:\n\n${text}`;
 
+                    // Log the prompt
+                    const promptLog = {
+                        type: 'prompt',
+                        content: prompt,
+                        timestamp: new Date().toLocaleString()
+                    };
+                    setLogs(prevLogs => [promptLog, ...prevLogs]);
+
+                    // Make the API call
                     const response = await fetch('https://api.openai.com/v1/chat/completions', {
                         method: 'POST',
                         headers: {
@@ -102,6 +154,7 @@
                         })
                     });
 
+                    // Handle non-OK responses
                     if (!response.ok) {
                         const errorData = await response.json();
                         throw new Error(errorData.error.message || 'API request failed.');
@@ -110,7 +163,15 @@
                     const data = await response.json();
                     const content = data.choices[0].message.content;
 
-                    // Assume the model returns a JSON array of sentences
+                    // Log the response
+                    const responseLog = {
+                        type: 'response',
+                        content: content,
+                        timestamp: new Date().toLocaleString()
+                    };
+                    setLogs(prevLogs => [responseLog, ...prevLogs]);
+
+                    // Parse the response
                     let parsedSentences = [];
 
                     try {
@@ -119,7 +180,7 @@
                             throw new Error('Response is not an array.');
                         }
                     } catch (parseError) {
-                        // Fallback: Split by periods if JSON parsing fails
+                        // Fallback: Split by sentence-ending punctuation if JSON parsing fails
                         parsedSentences = content.split(/(?<=[.?!])\s+/).map(s => s.trim()).filter(s => s.length > 0);
                     }
 
@@ -131,25 +192,28 @@
                 }
             };
 
-            const handleApiKeyChange = (e) => {
-                setApiKey(e.target.value);
-                // Update the URL hash
-                window.location.hash = `apiKey=${encodeURIComponent(e.target.value)}`;
-            };
-
             return (
                 <div>
                     <h1>Text to Sentences Converter</h1>
                     <form onSubmit={handleSubmit}>
                         <label>
                             OpenAI API Key:
-                            <input
-                                type="text"
-                                value={apiKey}
-                                onChange={handleApiKeyChange}
-                                placeholder="Enter your API key"
-                                required
-                            />
+                            <div style={{ position: 'relative' }}>
+                                <input
+                                    type={showApiKey ? 'text' : 'password'}
+                                    value={apiKey}
+                                    onChange={handleApiKeyChange}
+                                    placeholder="Enter your API key"
+                                    required
+                                />
+                                <button
+                                    type="button"
+                                    onClick={toggleApiKeyVisibility}
+                                    className="toggle-button"
+                                >
+                                    {showApiKey ? 'Hide' : 'Show'}
+                                </button>
+                            </div>
                         </label>
                         <br />
                         <label>
@@ -173,6 +237,17 @@
                             {sentences.map((sentence, index) => (
                                 <div key={index} className="sentence">
                                     {index + 1}. {sentence}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {logs.length > 0 && (
+                        <div className="logs">
+                            <h2>Logs:</h2>
+                            {logs.map((log, index) => (
+                                <div key={index} className="log-entry">
+                                    <strong>{log.timestamp} - {log.type.toUpperCase()}:</strong>
+                                    <pre style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>{log.content}</pre>
                                 </div>
                             ))}
                         </div>
