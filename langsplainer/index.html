@@ -144,7 +144,7 @@
                             'Authorization': `Bearer ${apiKey}`
                         },
                         body: JSON.stringify({
-                            model: 'gpt-4',
+                            model: 'gpt-4o', // Updated model name
                             messages: [
                                 { role: 'system', content: 'You are a helpful assistant that splits text into sentences.' },
                                 { role: 'user', content: prompt }
@@ -180,6 +180,14 @@
                             throw new Error('Response is not an array.');
                         }
                     } catch (parseError) {
+                        // Log the parse error
+                        const parseErrorLog = {
+                            type: 'parse-error',
+                            content: parseError.message,
+                            timestamp: new Date().toLocaleString()
+                        };
+                        setLogs(prevLogs => [parseErrorLog, ...prevLogs]);
+
                         // Fallback: Split by sentence-ending punctuation if JSON parsing fails
                         parsedSentences = content.split(/(?<=[.?!])\s+/).map(s => s.trim()).filter(s => s.length > 0);
                     }
@@ -187,6 +195,14 @@
                     setSentences(parsedSentences);
                 } catch (err) {
                     setError(err.message || 'An unexpected error occurred.');
+
+                    // Log the error
+                    const errorLog = {
+                        type: 'error',
+                        content: err.message || 'An unexpected error occurred.',
+                        timestamp: new Date().toLocaleString()
+                    };
+                    setLogs(prevLogs => [errorLog, ...prevLogs]);
                 } finally {
                     setLoading(false);
                 }
