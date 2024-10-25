@@ -43,20 +43,18 @@
     <div id="root"></div>
 
     <!-- Your TypeScript and JSX Code -->
-    <script type="text/babel" data-type="module" data-presets="typescript,react">
+    <script type="text/babel" data-type="module" data-presets="env,react,typescript">
         // Ensure Babel uses the necessary presets
         // This configuration might vary based on Babel's setup
 
         const { useState, useEffect } = React;
 
-        type SentenceSplitterProps = {};
-
-        const SentenceSplitter: React.FC<SentenceSplitterProps> = () => {
-            const [text, setText] = useState<string>('');
-            const [apiKey, setApiKey] = useState<string>('');
-            const [sentences, setSentences] = useState<string[]>([]);
-            const [loading, setLoading] = useState<boolean>(false);
-            const [error, setError] = useState<string | null>(null);
+        const SentenceSplitter = () => {
+            const [text, setText] = useState('');
+            const [apiKey, setApiKey] = useState('');
+            const [sentences, setSentences] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
 
             // Load API key from URL hash if present
             useEffect(() => {
@@ -67,7 +65,7 @@
                 }
             }, []);
 
-            const handleSubmit = async (e: React.FormEvent) => {
+            const handleSubmit = async (e) => {
                 e.preventDefault();
                 setError(null);
 
@@ -113,7 +111,7 @@
                     const content = data.choices[0].message.content;
 
                     // Assume the model returns a JSON array of sentences
-                    let parsedSentences: string[] = [];
+                    let parsedSentences = [];
 
                     try {
                         parsedSentences = JSON.parse(content);
@@ -126,14 +124,14 @@
                     }
 
                     setSentences(parsedSentences);
-                } catch (err: any) {
+                } catch (err) {
                     setError(err.message || 'An unexpected error occurred.');
                 } finally {
                     setLoading(false);
                 }
             };
 
-            const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+            const handleApiKeyChange = (e) => {
                 setApiKey(e.target.value);
                 // Update the URL hash
                 window.location.hash = `apiKey=${encodeURIComponent(e.target.value)}`;
