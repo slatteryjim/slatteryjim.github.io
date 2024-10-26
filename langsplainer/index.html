@@ -188,8 +188,8 @@
                         };
                         setLogs(prevLogs => [parseErrorLog, ...prevLogs]);
 
-                        // Fallback: Split by sentence-ending punctuation if JSON parsing fails
-                        parsedSentences = content.split(/(?<=[.?!])\s+/).map(s => s.trim()).filter(s => s.length > 0);
+                        // Display error message instead of manual segmentation
+                        throw new Error('Failed to parse the response from the LLM. Please try again or adjust your input.');
                     }
 
                     setSentences(parsedSentences);
