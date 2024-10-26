@@ -1,11 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- This HTML file is a web-based tool that allows users to input a block of text and convert it into individual sentences using OpenAI's language model.
-         Users provide their OpenAI API key, either through a text input field or URL hash, which is stored locally for convenience.
-         The React-based interface includes a form for text input, which, when submitted, sends a prompt to OpenAI's API to split the text into sentences.
-         The returned sentences are displayed in a list.
-    -->
     <meta charset="UTF-8">
     <title>Text to Sentences with OpenAI</title>
     <!-- React and ReactDOM -->
@@ -48,17 +43,6 @@
             color: red;
             margin-top: 10px;
         }
-        .logs {
-            background-color: #e8e8e8;
-            padding: 10px;
-            margin-top: 20px;
-            border-radius: 4px;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        .log-entry {
-            margin-bottom: 10px;
-        }
         .toggle-button {
             margin-left: 10px;
             padding: 5px 10px;
@@ -80,7 +64,6 @@
             const [sentences, setSentences] = useState([]);
             const [loading, setLoading] = useState(false);
             const [error, setError] = useState(null);
-            const [logs, setLogs] = useState([]);
             const [showApiKey, setShowApiKey] = useState(false);
 
             // Load API key from localStorage or URL hash on initial render
@@ -132,6 +115,11 @@
                 try {
                     console.log('Input text:', text);
                     
+                    // TODO: count the tokens in the input, if it's too close to the output token limit then throw an error
+                    
+                    const model = "gpt-4o-mini";
+                    const maxOutputTokens = 16384; // max output tokens currently supported by gpt-4o-mini
+                   
                     // Make the API call with structured output
                     const response = await fetch('https://api.openai.com/v1/chat/completions', {
                         method: 'POST',
@@ -140,7 +128,7 @@
                             'Authorization': `Bearer ${apiKey}`
                         },
                         body: JSON.stringify({
-                            model: 'gpt-4o-mini',
+                            model: model,
                             messages: [
                                 { role: 'system', content: "Convert the provided text into a list of individual sentences, faithfully reproducing each sentence unchanged." },
                                 { role: 'user', content: text }
@@ -166,7 +154,7 @@
                                     }
                                 }
                             },
-                            max_tokens: 5000,
+                            max_tokens: maxOutputTokens,
                             temperature: 1
                         })
                     });
@@ -178,7 +166,14 @@
                     }
 
                     const data = await response.json();
-                    const message = data.choices[0].message;
+                    const choice = data.choices[0]
+                    if (!choice) {
+                        throw new Error('No choices entry in API response: ' + JSON.stringify(data));
+                    }
+                    if (choice.finish_reason !== 'stop') {
+                        throw new Error('Model did not finish processing, finish_reason: ' + choice.finish_reason);
+                    }
+                    const message = choice.message;
                     if (message.refusal) {
                         throw new Error('Model refused to respond: ' + message.refusal);
                     }
@@ -191,6 +186,10 @@
                         throw new Error('Response is not an array of sentences.');
                     }
 
+                    // TODO: validate the the sentences exactly match the given input text!
+                    // For example, trim whitespace from the input text, and check that its prefix is the first sentence.
+                    // Drop the first sentence, trim whitespace from the input text again, and check the next sentence, etc.
+
                     setSentences(parsedSentences);
                 } catch (err) {
                     setError(err.message || 'An unexpected error occurred.');
@@ -202,6 +201,12 @@
             return (
                 <div>
                     <h1>Text to Sentences Converter</h1>
+                    <p>
+                        This tool allows you to input a block of text and convert it into individual sentences using OpenAI's language model.<br />
+                        First you need to provide your OpenAI API key, either through the text input field or URL hash (it will also be stored in the browser local storage for convenience).<br />
+                        Provide text to split into sentences and click "Split into Sentences". The tool will then sends a prompt to OpenAI's API to split the text into sentences.<br />
+                        The returned sentences are displayed in a list.<br />
+                    </p>
                     <form onSubmit={handleSubmit}>
                         <label>
                             OpenAI API Key:
