@@ -70,7 +70,7 @@
 
         const SentenceSplitter = () => {
             // State variables
-            const [text, setText] = useState('');
+            const [text, setText] = useState('Hello world. Nice day!');
             const [apiKey, setApiKey] = useState('');
             const [sentences, setSentences] = useState([]);
             const [loading, setLoading] = useState(false);
@@ -136,18 +136,7 @@
                     };
                     setLogs(prevLogs => [promptLog, ...prevLogs]);
 
-                    // Define the JSON schema for structured output
-                    const jsonSchema = {
-                        "type": "object",
-                        "properties": {
-                            "sentences": {
-                                "type": "array",
-                                "items": { "type": "string" }
-                            }
-                        },
-                        "required": ["sentences"]
-                    };
-
+                    
                     // Make the API call with structured output
                     const response = await fetch('https://api.openai.com/v1/chat/completions', {
                         method: 'POST',
@@ -161,13 +150,30 @@
                                 { role: 'system', content: 'You are a helpful assistant that splits text into sentences.' },
                                 { role: 'user', content: prompt }
                             ],
+                            // Define the JSON schema for structured output
                             response_format: {
                                 "type": "json_schema",
-                                "json_schema": jsonSchema,
-                                "strict": true
+                                "json_schema": {
+                                    "name": "sentence_array",
+                                    "strict": true,
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "sentences": {
+                                                "type": "array",
+                                                "items": { 
+                                                    "type": "string",
+                                                     "description": "A single sentence.",
+                                                }
+                                            },
+                                        },
+                                        "required": ["sentences"],
+                                        "additionalProperties": false,
+                                    },
+                                },
                             },
-                            max_tokens: 1000,
-                            temperature: 0.3
+                            max_tokens: 5000,
+                            temperature: 1
                         })
                     });
 
@@ -178,6 +184,7 @@
                     }
 
                     const data = await response.json();
+                    console.log("Response", data);
                     const content = data.choices[0].message.content;
 
                     // Log the response
@@ -188,10 +195,10 @@
                     };
                     setLogs(prevLogs => [responseLog, ...prevLogs]);
 
-                    // Parse the response
-                    const parsedSentences = content.sentences;
+                    // Parse content, it contains JSON
+                    const parsedSentences = JSON.parse(content).sentences;
                     if (!Array.isArray(parsedSentences)) {
-                        throw new Error('Response does not match the expected format.');
+                        throw new Error('Response is not an array of sentences.');
                     }
 
                     setSentences(parsedSentences);
