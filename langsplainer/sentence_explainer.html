@@ -10,7 +10,6 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- Optional: Include a CSS library or custom styles here -->
     <style>
-        /* Same styles as before */
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
@@ -344,21 +343,30 @@ ${sentence}`;
                                 <p>{explanation.sentenceTranslationLiteral}</p>
 
                                 <h3>Sentence Segmented Breakdown:</h3>
-                                <ul>
-                                    {explanation.sentenceSegmentedBreakdown.map((item, index) => (
-                                        <li key={index}>
-                                            <strong>{item.wordOrPhrase}</strong> ({item.pronunciation}):
-                                            <br />
-                                            Gloss L2: {item.glossL2}
-                                            <br />
-                                            Gloss L1: {item.glossL1}
-                                            <br />
-                                            Explanation L2: {item.explanationL2}
-                                            <br />
-                                            Explanation L1: {item.explanationL1}
-                                        </li>
-                                    ))}
-                                </ul>
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Word or Phrase</th>
+                                            <th>Pronunciation</th>
+                                            <th>Gloss</th>
+                                            <th>Explanation</th>
+                                            <th>Gloss ({l1Language})</th>
+                                            <th>Explanation ({l1Language})</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {explanation.sentenceSegmentedBreakdown.map((item, index) => (
+                                            <tr key={index}>
+                                                <td><strong>{item.wordOrPhrase}</strong></td>
+                                                <td>{item.pronunciation}</td>
+                                                <td>{item.glossL2}</td>
+                                                <td>{item.explanationL2}</td>
+                                                <td>{item.glossL1}</td>
+                                                <td>{item.explanationL1}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
 
                                 <h3>Comments or Warnings:</h3>
                                 <p>{explanation.sentenceCommentsOrWarnings}</p>
