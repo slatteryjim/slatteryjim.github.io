@@ -65,13 +65,14 @@
 
         const SentenceExplainer = () => {
             // State variables
-            const [sentence, setSentence] = useState('国央企如此热切拥抱大模型，或与一道新政有关。');
+            const [sentence, setSentence] = useState('格拉苏蒂原创2021年新品机芯倒装手工雕花中国新年限量款偏心绿金参议员万年历。');
             const [apiKey, setApiKey] = useState('');
             const [l1Language, setL1Language] = useState('English');
             const [explanation, setExplanation] = useState(null);
             const [loading, setLoading] = useState(false);
             const [error, setError] = useState(null);
             const [showApiKey, setShowApiKey] = useState(false);
+            const [model, setModel] = useState('gpt-4o-mini'); // Default model
 
             // Load API key from localStorage or URL hash on initial render
             useEffect(() => {
@@ -102,6 +103,11 @@
                 setL1Language(e.target.value);
             };
 
+            // Function to handle model selection changes
+            const handleModelChange = (e) => {
+                setModel(e.target.value);
+            };
+
             // Function to toggle API key visibility
             const toggleApiKeyVisibility = () => {
                 setShowApiKey(!showApiKey);
@@ -127,45 +133,103 @@
                 try {
                     console.log('Input sentence:', sentence);
 
-                    const model = "gpt-4o-mini";
                     const maxOutputTokens = 16384; // max output tokens currently supported by gpt-4o-mini
 
                     // Prepare the prompt
                     // TODO: should include an example sentence and exampel output in the prompt? Though it is getting big, of course.
                     const prompt = `You are a language sentence explainer.
+As a language mentor and fluent speaker of their target language (L2), you **only reply in that language** except when providing translations. You are very encouraging of them to succeed in their studies.
 
 The user was reading some text and came across a sentence they didn't understand. Maybe they didn't understand one word or phrase, or maybe they knew each word but didn't understand what the sentence as a whole meant.
+You can identify the language they are studying by analyzing the sentence they provide.
 
-They will provide a snippet for context and then the particular sentence to focus on.
+<example>
+    <exampleInputs>
+        <usersNativeLanguage>English</usersNativeLanguage>
+        <sentenceBeingStudied>国央企如此热切拥抱大模型，或与一道新政有关。</sentenceBeingStudied>
+    </exampleInputs>
+    You would reply with this JSON:
+    <exampleResponse>
+        {
+            "sentenceOriginal": "国央企如此热切拥抱大模型，或与一道新政有关。",
+            "languageBeingLearned": "中文",
+            "usersNativeLanguage": "English",
+            "sentenceSimplified": "State-owned enterprises in the country are eager to embrace large models, possibly related to a new policy.",
+            "sentenceSimplifiedGreatly": "The state companies really want to use big models, maybe because of a new rule.",
+            "sentenceTranslation": "State-owned enterprises are so eager to embrace large models, which may be related to a new policy.",
+            "sentenceTranslationLiteral": "National central enterprises so eagerly embrace big models, possibly related to a new policy.",
+            "sentenceSegmentedBreakdown": [
+                {
+                    "wordOrPhrase": "国央企",
+                    "pronunciation": "guó yāng qǐ",
+                    "gloss": "国家企业",
+                    "explanation": "指的是国家的中央企业。",
+                    "glossTranslation": "state-owned enterprises",
+                    "explanationTranslation": "Refers to central enterprises of the state."
+                },
+                {
+                    "wordOrPhrase": "如此",
+                    "pronunciation": "rúcǐ",
+                    "gloss": "如此大量",
+                    "explanation": "表示程度很高或非常。",
+                    "glossTranslation": "so; such",
+                    "explanationTranslation": "Indicates a high degree or very."
+                },
+                {
+                    "wordOrPhrase": "热切",
+                    "pronunciation": "rèqiè",
+                    "gloss": "热情",
+                    "explanation": "指的是非常渴望或热衷。",
+                    "glossTranslation": "eager; passionate",
+                    "explanationTranslation": "Means very eager or enthusiastic."
+                },
+                {
+                    "wordOrPhrase": "拥抱",
+                    "pronunciation": "yōngbào",
+                    "gloss": "接受",
+                    "explanation": "在这里比喻接受或采纳。",
+                    "glossTranslation": "embrace; hug",
+                    "explanationTranslation": "Metaphorically means to accept or adopt."
+                },
+                {
+                    "wordOrPhrase": "大模型",
+                    "pronunciation": "dà móxíng",
+                    "gloss": "大型模型",
+                    "explanation": "指的是大型的模型或系统。",
+                    "glossTranslation": "large model",
+                    "explanationTranslation": "Refers to large models or systems."
+                },
+                {
+                    "wordOrPhrase": "或与",
+                    "pronunciation": "huò yǔ",
+                    "gloss": "或与相关",
+                    "explanation": "表示可能的关联。",
+                    "glossTranslation": "or related to",
+                    "explanationTranslation": "Indicates a possible relation."
+                },
+                {
+                    "wordOrPhrase": "一道新政",
+                    "pronunciation": "yīdào xīng zhèng",
+                    "gloss": "新的政策",
+                    "explanation": "指的是新的政策或法规。",
+                    "glossTranslation": "a new policy",
+                    "explanationTranslation": "Refers to a new policy or regulation."
+                }
+            ],
+            "sentenceCommentsOrWarnings": "这个句子的结构比较复杂，涉及一些专业术语，所以理解起来可能有点困难，但很棒的是你在努力学习！",
+            "sentenceRecommendedVersion": "国家央企如此热切拥抱大型模型，这可能与新政策有关。"
+        }
+    </exampleResponse>
+</example>
 
-As a language mentor and fluent speaker of their target language (L2), you should **only reply in that language**. You are very encouraging of them to succeed in their studies.
+Now, here are your inputs for this case:
+<usersNativeLanguage>${l1Language}</usersNativeLanguage>
+<sentenceBeingStudied>${sentence}</sentenceBeingStudied>`;
 
-The user's native language (L1) is ${l1Language}.
+                    // TODO: use special tokens to demarcate the sentence, 
+                    // and also prevent the template variables from using these special tokens!
 
-When a user provides a sentence, you will offer the following types of explanations, always responding in the target language (L2):
-
-- **sentenceOriginal**: The original sentence provided by the user.
-- **sentenceSimplified**: A simplified version of the sentence using easy-to-understand vocabulary while retaining the original nuances.
-- **sentenceSimplifiedGreatly**: An even more simplified version of the sentence, focusing on basic vocabulary and structure, but still maintaining the original meaning.
-- **sentenceTranslation**: A clear translation of the sentence in the user's native language (L1).
-- **sentenceTranslationLiteral**: A word-for-word translation that closely follows the structure and grammar of the original sentence in the user's native language (L1).
-- **sentenceSegmentedBreakdown**: A breakdown of the sentence where each word or important phrase is separated and explained. For each word or phrase, provide:
-  - **wordOrPhrase**: The word or phrase from the sentence.
-  - **pronunciation**: The accurate pronunciation of the word or phrase (e.g., pinyin, IPA).
-  - **gloss**: A short definition or gloss in the target language (L2).
-  - **glossTranslation**: A short definition or gloss in the user's native language (L1).
-  - **explanation**: An explanatory alternative in the target language (L2).
-  - **explanationTranslation**: An explanatory alternative in the user's native language (L1).
-- **sentenceCommentsOrWarnings**: Any comments or warnings about the sentence.
-- **sentenceRecommendedVersion**: The recommended version of the sentence, applying any improvements deemed appropriate.
-
-Your response must be in **JSON format** and strictly conform to the provided JSON Schema.
-
-Now, here is the sentence provided by the user:
-
-${sentence}`;
-
-                    // Make the API call with the prompt and response_format
+                    // Make the API call with the selected model
                     const response = await fetch('https://api.openai.com/v1/chat/completions', {
                         method: 'POST',
                         headers: {
@@ -173,7 +237,7 @@ ${sentence}`;
                             'Authorization': `Bearer ${apiKey}`
                         },
                         body: JSON.stringify({
-                            model: model,
+                            model: model, // Use the selected model
                             messages: [
                                 { role: 'user', content: prompt }
                             ],
@@ -185,32 +249,64 @@ ${sentence}`;
                                     "schema": {
                                         "type": "object",
                                         "properties": {
-                                            "sentenceOriginal": { "type": "string" },
-                                            "sentenceSimplified": { "type": "string" },
-                                            "sentenceSimplifiedGreatly": { "type": "string" },
-                                            "sentenceTranslation": { "type": "string" },
-                                            "sentenceTranslationLiteral": { "type": "string" },
+                                            "sentenceOriginal": {
+                                                "type": "string",
+                                                "description": "The original sentence provided by the user."
+                                            },
+                                            "languageBeingLearned": {
+                                                "type": "string",
+                                                "description": "The detected language of the sentence the user is reading (L2)."
+                                            },
+                                            "usersNativeLanguage": {
+                                                "type": "string",
+                                                "description": "The native language of the user (L1), used for translations."
+                                            },
+                                            "sentenceSimplified": {
+                                                "type": "string",
+                                                "description": "A simplified version of the sentence using easy-to-understand vocabulary while retaining the original nuances."
+                                            },
+                                            "sentenceSimplifiedGreatly": {
+                                                "type": "string",
+                                                "description": "An even more simplified version of the sentence, focusing on basic vocabulary and structure, but still maintaining the original meaning."
+                                            },
+                                            "sentenceTranslation": {
+                                                "type": "string",
+                                                "description": "A clear translation of the sentence in the usersNativeLanguage."
+                                            },
+                                            "sentenceTranslationLiteral": {
+                                                "type": "string",
+                                                "description": "A word-for-word translation of the sentence into the usersNativeLanguage that closely follows the structure and grammar of the original sentence."
+                                            },
                                             "sentenceSegmentedBreakdown": {
                                                 "type": "array",
                                                 "items": {
                                                     "type": "object",
                                                     "properties": {
-                                                        "wordOrPhrase": { "type": "string" },
-                                                        "pronunciation": { "type": "string" },
-                                                        "gloss":       { "type": "string", "description": "Short gloss in the target language (L2)." },
-                                                        "explanation": { "type": "string", "description": "Explanatory alternative in the target language (L2)." },
-                                                        "glossTranslation":       { "type": "string", "description": "Short gloss in the user's native language (L1)."},
-                                                        "explanationTranslation": { "type": "string", "description": "Explanatory alternative in the user's native language (L1)." }
+                                                        "wordOrPhrase":  {"type": "string",  "description": "The word or phrase from the sentence."},
+                                                        "pronunciation": {"type": "string", "description": "The accurate pronunciation of the word or phrase (e.g., pinyin, IPA)."},
+                                                        "gloss":       {"type": "string", "description": "A short definition or gloss in the languageBeingLearned."},
+                                                        "explanation": {"type": "string", "description": "An explanatory alternative in the languageBeingLearned."},
+                                                        "glossTranslation": {"type": "string", "description": "A short definition or gloss in the usersNativeLanguage."},
+                                                        "explanationTranslation": {"type": "string", "description": "An explanatory alternative in the usersNativeLanguage."}
                                                     },
-                                                    "required": ["wordOrPhrase", "pronunciation", "gloss", "glossTranslation", "explanation", "explanationTranslation"],
+                                                    "required": [
+                                                        "wordOrPhrase",
+                                                        "pronunciation",
+                                                        "gloss",
+                                                        "glossTranslation",
+                                                        "explanation",
+                                                        "explanationTranslation"
+                                                    ],
                                                     "additionalProperties": false
                                                 }
                                             },
-                                            "sentenceCommentsOrWarnings": { "type": "string" },
-                                            "sentenceRecommendedVersion": { "type": "string" }
+                                            "sentenceCommentsOrWarnings": {"type": "string", "description": "Any comments or warnings about the sentence."},
+                                            "sentenceRecommendedVersion": {"type": "string", "description": "The recommended version of the sentence, applying any improvements deemed appropriate."}
                                         },
                                         "required": [
                                             "sentenceOriginal",
+                                            "languageBeingLearned",
+                                            "usersNativeLanguage",
                                             "sentenceSimplified",
                                             "sentenceSimplifiedGreatly",
                                             "sentenceTranslation",
@@ -224,7 +320,7 @@ ${sentence}`;
                                 }
                             },
                             max_tokens: maxOutputTokens,
-                            temperature: 1
+                            temperature: 0
                         })
                     });
 
@@ -248,7 +344,6 @@ ${sentence}`;
                     const content = choice.message.content;
 
                     let explanationData;
-
                     try {
                         explanationData = JSON.parse(content);
                     } catch (parseError) {
@@ -256,8 +351,6 @@ ${sentence}`;
                     }
 
                     console.log('Parsed explanation data:', explanationData);
-
-                    // Set the explanation data
                     setExplanation(explanationData);
 
                 } catch (err) {
@@ -299,6 +392,14 @@ ${sentence}`;
                         </label>
                         <br />
                         <label>
+                            Model:
+                            <select value={model} onChange={handleModelChange}>
+                                <option value="gpt-4o-mini">gpt-4o-mini</option>
+                                <option value="gpt-4o">gpt-4o</option>
+                            </select>
+                        </label>
+                        <br />
+                        <label>
                             Your Native Language (L1):
                             <input
                                 type="text"
@@ -328,7 +429,7 @@ ${sentence}`;
                         <div>
                             <h2>Explanation:</h2>
                             <div className="explanation">
-                                <h3>Sentence Original:</h3>
+                                <h3>Sentence Original (detected as {explanation.languageBeingLearned}):</h3>
                                 <p>{explanation.sentenceOriginal}</p>
 
                                 <h3>Sentence Simplified:</h3>
@@ -337,7 +438,7 @@ ${sentence}`;
                                 <h3>Sentence Greatly Simplified:</h3>
                                 <p>{explanation.sentenceSimplifiedGreatly}</p>
 
-                                <h3>Sentence Translation:</h3>
+                                <h3>Sentence Translation (into {explanation.usersNativeLanguage}):</h3>
                                 <p>{explanation.sentenceTranslation}</p>
 
                                 <h3>Sentence Literal Translation:</h3>
