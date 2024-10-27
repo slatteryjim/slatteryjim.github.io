@@ -10,6 +10,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- Optional: Include a CSS library or custom styles here -->
     <style>
+        /* Same styles as before */
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
@@ -67,6 +68,7 @@
             // State variables
             const [sentence, setSentence] = useState('国央企如此热切拥抱大模型，或与一道新政有关。');
             const [apiKey, setApiKey] = useState('');
+            const [l1Language, setL1Language] = useState('English');
             const [explanation, setExplanation] = useState(null);
             const [loading, setLoading] = useState(false);
             const [error, setError] = useState(null);
@@ -94,6 +96,11 @@
                 const value = e.target.value;
                 setApiKey(value);
                 localStorage.setItem('openai_api_key', value);
+            };
+
+            // Function to handle L1 language changes
+            const handleL1LanguageChange = (e) => {
+                setL1Language(e.target.value);
             };
 
             // Function to toggle API key visibility
@@ -133,6 +140,8 @@ They will provide a snippet for context and then the particular sentence to focu
 
 As a language mentor and fluent speaker of their target language (L2), you should **only reply in that language**. You are very encouraging of them to succeed in their studies.
 
+The user's native language (L1) is ${l1Language}.
+
 When a user provides a sentence, you will offer the following types of explanations, always responding in the target language (L2):
 
 - **sentenceOriginal**: The original sentence provided by the user.
@@ -143,8 +152,10 @@ When a user provides a sentence, you will offer the following types of explanati
 - **sentenceSegmentedBreakdown**: A breakdown of the sentence where each word or important phrase is separated and explained. For each word or phrase, provide:
   - **wordOrPhrase**: The word or phrase from the sentence.
   - **pronunciation**: The accurate pronunciation of the word or phrase (e.g., pinyin, IPA).
-  - **explanationL1**: An explanatory alternative in the user's native language (L1).
+  - **glossL2**: A short definition or gloss in the target language (L2).
+  - **glossL1**: A short definition or gloss in the user's native language (L1).
   - **explanationL2**: An explanatory alternative in the target language (L2).
+  - **explanationL1**: An explanatory alternative in the user's native language (L1).
 - **sentenceCommentsOrWarnings**: Any comments or warnings about the sentence.
 - **sentenceRecommendedVersion**: The recommended version of the sentence, applying any improvements deemed appropriate.
 
@@ -186,10 +197,12 @@ ${sentence}`;
                                                     "properties": {
                                                         "wordOrPhrase": { "type": "string" },
                                                         "pronunciation": { "type": "string" },
-                                                        "explanationL1": { "type": "string" },
-                                                        "explanationL2": { "type": "string" }
+                                                        "glossL2": { "type": "string" },
+                                                        "glossL1": { "type": "string" },
+                                                        "explanationL2": { "type": "string" },
+                                                        "explanationL1": { "type": "string" }
                                                     },
-                                                    "required": ["wordOrPhrase", "pronunciation", "explanationL1", "explanationL2"],
+                                                    "required": ["wordOrPhrase", "pronunciation", "glossL2", "glossL1", "explanationL2", "explanationL1"],
                                                     "additionalProperties": false
                                                 }
                                             },
@@ -211,7 +224,7 @@ ${sentence}`;
                                 }
                             },
                             max_tokens: maxOutputTokens,
-                            temperature: 1 // 0 is deterministic, 1 is default, 2 is more random
+                            temperature: 1
                         })
                     });
 
@@ -286,6 +299,17 @@ ${sentence}`;
                         </label>
                         <br />
                         <label>
+                            Your Native Language (L1):
+                            <input
+                                type="text"
+                                value={l1Language}
+                                onChange={handleL1LanguageChange}
+                                placeholder="Enter your native language"
+                                required
+                            />
+                        </label>
+                        <br />
+                        <label>
                             Enter Sentence:
                             <textarea
                                 value={sentence}
@@ -325,9 +349,13 @@ ${sentence}`;
                                         <li key={index}>
                                             <strong>{item.wordOrPhrase}</strong> ({item.pronunciation}):
                                             <br />
-                                            Explanation L1: {item.explanationL1}
+                                            Gloss L2: {item.glossL2}
+                                            <br />
+                                            Gloss L1: {item.glossL1}
                                             <br />
                                             Explanation L2: {item.explanationL2}
+                                            <br />
+                                            Explanation L1: {item.explanationL1}
                                         </li>
                                     ))}
                                 </ul>
@@ -347,7 +375,8 @@ ${sentence}`;
         ReactDOM.createRoot(document.getElementById('root')).render(
             <StrictMode>
                 <SentenceExplainer />
-            </StrictMode>);
+            </StrictMode>
+        );
     </script>
 </body>
 </html>
