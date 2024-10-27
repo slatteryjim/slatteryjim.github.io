@@ -152,10 +152,10 @@ When a user provides a sentence, you will offer the following types of explanati
 - **sentenceSegmentedBreakdown**: A breakdown of the sentence where each word or important phrase is separated and explained. For each word or phrase, provide:
   - **wordOrPhrase**: The word or phrase from the sentence.
   - **pronunciation**: The accurate pronunciation of the word or phrase (e.g., pinyin, IPA).
-  - **glossL2**: A short definition or gloss in the target language (L2).
-  - **glossL1**: A short definition or gloss in the user's native language (L1).
-  - **explanationL2**: An explanatory alternative in the target language (L2).
-  - **explanationL1**: An explanatory alternative in the user's native language (L1).
+  - **gloss**: A short definition or gloss in the target language (L2).
+  - **glossTranslation**: A short definition or gloss in the user's native language (L1).
+  - **explanation**: An explanatory alternative in the target language (L2).
+  - **explanationTranslation**: An explanatory alternative in the user's native language (L1).
 - **sentenceCommentsOrWarnings**: Any comments or warnings about the sentence.
 - **sentenceRecommendedVersion**: The recommended version of the sentence, applying any improvements deemed appropriate.
 
@@ -197,12 +197,12 @@ ${sentence}`;
                                                     "properties": {
                                                         "wordOrPhrase": { "type": "string" },
                                                         "pronunciation": { "type": "string" },
-                                                        "glossL2": { "type": "string" },
-                                                        "glossL1": { "type": "string" },
-                                                        "explanationL2": { "type": "string" },
-                                                        "explanationL1": { "type": "string" }
+                                                        "gloss":       { "type": "string", "description": "Short gloss in the target language (L2)." },
+                                                        "explanation": { "type": "string", "description": "Explanatory alternative in the target language (L2)." },
+                                                        "glossTranslation":       { "type": "string", "description": "Short gloss in the user's native language (L1)."},
+                                                        "explanationTranslation": { "type": "string", "description": "Explanatory alternative in the user's native language (L1)." }
                                                     },
-                                                    "required": ["wordOrPhrase", "pronunciation", "glossL2", "glossL1", "explanationL2", "explanationL1"],
+                                                    "required": ["wordOrPhrase", "pronunciation", "gloss", "glossTranslation", "explanation", "explanationTranslation"],
                                                     "additionalProperties": false
                                                 }
                                             },
@@ -360,10 +360,10 @@ ${sentence}`;
                                             <tr key={index}>
                                                 <td><strong>{item.wordOrPhrase}</strong></td>
                                                 <td>{item.pronunciation}</td>
-                                                <td>{item.glossL2}</td>
-                                                <td>{item.explanationL2}</td>
-                                                <td>{item.glossL1}</td>
-                                                <td>{item.explanationL1}</td>
+                                                <td>{item.gloss}</td>
+                                                <td>{item.explanation}</td>
+                                                <td>{item.glossTranslation}</td>
+                                                <td>{item.explanationTranslation}</td>
                                             </tr>
                                         ))}
                                     </tbody>
