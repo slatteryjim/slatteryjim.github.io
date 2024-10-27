@@ -154,43 +154,6 @@ Now, here is the sentence provided by the user:
 
 ${sentence}`;
 
-                    // Define the JSON schema
-                    const jsonSchema = {
-                        "type": "object",
-                        "properties": {
-                            "sentenceOriginal": { "type": "string" },
-                            "sentenceSimplified": { "type": "string" },
-                            "sentenceSimplifiedGreatly": { "type": "string" },
-                            "sentenceTranslation": { "type": "string" },
-                            "sentenceTranslationLiteral": { "type": "string" },
-                            "sentenceSegmentedBreakdown": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "wordOrPhrase": { "type": "string" },
-                                        "pronunciation": { "type": "string" },
-                                        "explanationL1": { "type": "string" },
-                                        "explanationL2": { "type": "string" }
-                                    },
-                                    "required": ["wordOrPhrase", "pronunciation", "explanationL1", "explanationL2"]
-                                }
-                            },
-                            "sentenceCommentsOrWarnings": { "type": "string" },
-                            "sentenceRecommendedVersion": { "type": "string" }
-                        },
-                        "required": [
-                            "sentenceOriginal",
-                            "sentenceSimplified",
-                            "sentenceSimplifiedGreatly",
-                            "sentenceTranslation",
-                            "sentenceTranslationLiteral",
-                            "sentenceSegmentedBreakdown",
-                            "sentenceCommentsOrWarnings",
-                            "sentenceRecommendedVersion"
-                        ]
-                    };
-
                     // Make the API call with the prompt and response_format
                     const response = await fetch('https://api.openai.com/v1/chat/completions', {
                         method: 'POST',
@@ -205,10 +168,50 @@ ${sentence}`;
                             ],
                             response_format: {
                                 "type": "json_schema",
-                                "json_schema": jsonSchema
+                                "json_schema": {
+                                    "name": "sentence_explanation",
+                                    "strict": true,
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "sentenceOriginal": { "type": "string" },
+                                            "sentenceSimplified": { "type": "string" },
+                                            "sentenceSimplifiedGreatly": { "type": "string" },
+                                            "sentenceTranslation": { "type": "string" },
+                                            "sentenceTranslationLiteral": { "type": "string" },
+                                            "sentenceSegmentedBreakdown": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "wordOrPhrase": { "type": "string" },
+                                                        "pronunciation": { "type": "string" },
+                                                        "explanationL1": { "type": "string" },
+                                                        "explanationL2": { "type": "string" }
+                                                    },
+                                                    "required": ["wordOrPhrase", "pronunciation", "explanationL1", "explanationL2"],
+                                                    "additionalProperties": false
+                                                }
+                                            },
+                                            "sentenceCommentsOrWarnings": { "type": "string" },
+                                            "sentenceRecommendedVersion": { "type": "string" }
+                                        },
+                                        "required": [
+                                            "sentenceOriginal",
+                                            "sentenceSimplified",
+                                            "sentenceSimplifiedGreatly",
+                                            "sentenceTranslation",
+                                            "sentenceTranslationLiteral",
+                                            "sentenceSegmentedBreakdown",
+                                            "sentenceCommentsOrWarnings",
+                                            "sentenceRecommendedVersion"
+                                        ],
+                                        "additionalProperties": false
+                                    }
+                                }
                             },
                             max_tokens: maxOutputTokens,
-                            temperature: 0
+                            temperature: 1 // 0 is deterministic, 1 is default, 2 is more random
                         })
                     });
 
