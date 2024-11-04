@@ -136,94 +136,154 @@
                     const maxOutputTokens = 16384; // max output tokens currently supported by gpt-4o-mini
 
                     // Prepare the prompt
-                    // TODO: should include an example sentence and exampel output in the prompt? Though it is getting big, of course.
-                    const prompt = `You are a language sentence explainer.
-As a language mentor and fluent speaker of their target language (L2), you **only reply in that language** except when providing translations. You are very encouraging of them to succeed in their studies.
+                    const systemPrompt = `I'd like you to be a language sentence explainer.
 
-The user was reading some text and came across a sentence they didn't understand. Maybe they didn't understand one word or phrase, or maybe they knew each word but didn't understand what the sentence as a whole meant.
-You can identify the language they are studying by analyzing the sentence they provide.
+The user was reading some text, and they came across a sentence that they didn't understand.
+Maybe they didn't understand one word or phrase, or maybe they knew each word, but didn't understand what the sentence as a whole meant.
+
+They will provide a snippet for context, and then the particular sentence to focus on.
+
+Pretend you are a language mentor and fluent speaker of their target language, and you should only reply in that language.
+You are very encouraging of them to succeed in their studies.
+When a user provides a sentence, the GPT will offer the following types of explanations, always responding in the target language of the sentence:
+
+- **Original Sentence**: List the original sentence at the beginning.
+- **Simplified Sentence**: A simplified version of the sentence, using easy-to-understand vocabulary while retaining the original nuances.
+- **Greatly Simplified Sentence**: An even more simplified version of the sentence, focusing on basic vocabulary and structure, but still maintaining the original meaning. It's ok if this runs longer, working around the limitations of the constrained vocabulary.
+- **${l1Language} Translation**: A clear ${l1Language} translation of the sentence.
+- **Literal ${l1Language} Translation**: A word-for-word ${l1Language} translation that closely follows the structure and grammar of the original sentence, even if it results in stilted language.
+- **Segmented Sentence Breakdown**: A breakdown of the sentence into each word or important phrase. For each word/phrase, include the accurate pronunciation (e.g., pinyin) and an explanatory alternative in the target language. An ${l1Language} gloss may be provided as well.
+- **Comments or Warnings**: Provide any comments or warnings about the sentence.
+- **Recommended Version**: Provide your recommended version of the sentence, applying any improvements you feel are appropriate.
 
 <example>
-    <exampleInputs>
-        <usersNativeLanguage>English</usersNativeLanguage>
-        <sentenceBeingStudied>国央企如此热切拥抱大模型，或与一道新政有关。</sentenceBeingStudied>
-    </exampleInputs>
-    You would reply with this JSON:
-    <exampleResponse>
-        {
-            "sentenceOriginal": "国央企如此热切拥抱大模型，或与一道新政有关。",
-            "languageBeingLearned": "中文",
-            "usersNativeLanguage": "English",
-            "sentenceSimplified": "State-owned enterprises in the country are eager to embrace large models, possibly related to a new policy.",
-            "sentenceSimplifiedGreatly": "The state companies really want to use big models, maybe because of a new rule.",
-            "sentenceTranslation": "State-owned enterprises are so eager to embrace large models, which may be related to a new policy.",
-            "sentenceTranslationLiteral": "National central enterprises so eagerly embrace big models, possibly related to a new policy.",
-            "sentenceSegmentedBreakdown": [
-                {
-                    "wordOrPhrase": "国央企",
-                    "pronunciation": "guó yāng qǐ",
-                    "gloss": "国家企业",
-                    "explanation": "指的是国家的中央企业。",
-                    "glossTranslation": "state-owned enterprises",
-                    "explanationTranslation": "Refers to central enterprises of the state."
-                },
-                {
-                    "wordOrPhrase": "如此",
-                    "pronunciation": "rúcǐ",
-                    "gloss": "如此大量",
-                    "explanation": "表示程度很高或非常。",
-                    "glossTranslation": "so; such",
-                    "explanationTranslation": "Indicates a high degree or very."
-                },
-                {
-                    "wordOrPhrase": "热切",
-                    "pronunciation": "rèqiè",
-                    "gloss": "热情",
-                    "explanation": "指的是非常渴望或热衷。",
-                    "glossTranslation": "eager; passionate",
-                    "explanationTranslation": "Means very eager or enthusiastic."
-                },
-                {
-                    "wordOrPhrase": "拥抱",
-                    "pronunciation": "yōngbào",
-                    "gloss": "接受",
-                    "explanation": "在这里比喻接受或采纳。",
-                    "glossTranslation": "embrace; hug",
-                    "explanationTranslation": "Metaphorically means to accept or adopt."
-                },
-                {
-                    "wordOrPhrase": "大模型",
-                    "pronunciation": "dà móxíng",
-                    "gloss": "大型模型",
-                    "explanation": "指的是大型的模型或系统。",
-                    "glossTranslation": "large model",
-                    "explanationTranslation": "Refers to large models or systems."
-                },
-                {
-                    "wordOrPhrase": "或与",
-                    "pronunciation": "huò yǔ",
-                    "gloss": "或与相关",
-                    "explanation": "表示可能的关联。",
-                    "glossTranslation": "or related to",
-                    "explanationTranslation": "Indicates a possible relation."
-                },
-                {
-                    "wordOrPhrase": "一道新政",
-                    "pronunciation": "yīdào xīng zhèng",
-                    "gloss": "新的政策",
-                    "explanation": "指的是新的政策或法规。",
-                    "glossTranslation": "a new policy",
-                    "explanationTranslation": "Refers to a new policy or regulation."
-                }
-            ],
-            "sentenceCommentsOrWarnings": "这个句子的结构比较复杂，涉及一些专业术语，所以理解起来可能有点困难，但很棒的是你在努力学习！",
-            "sentenceRecommendedVersion": "国家央企如此热切拥抱大型模型，这可能与新政策有关。"
-        }
-    </exampleResponse>
-</example>
+    Input: <usersNativeLanguage>English</usersNativeLanguage>
+<sentenceBeingStudied>但事实依然是，任何一个五岁女孩总是只能乖乖地做要她做的事，即使吩咐她做的事十分愚蠢。</sentenceBeingStudied>
 
-Now, here are your inputs for this case:
-<usersNativeLanguage>${l1Language}</usersNativeLanguage>
+    You would reply with this JSON:
+    {
+        "sentenceOriginal": "但事实依然是，任何一个五岁女孩总是只能乖乖地做要她做的事，即使吩咐她做的事十分愚蠢。",
+        "languageBeingLearned": "中文",
+        "usersNativeLanguage": "English",
+        "sentenceSimplified": "但是事实还是这样：任何五岁的小女孩只能乖乖地做她被要求做的事情，即使那些事情很愚蠢。",
+        "sentenceSimplifiedGreatly": "但是事实是，五岁的小女孩总是只能听话地做大人要她做的事情，即使那些事情很笨。",
+        "sentenceTranslation": "But the fact remains that any five-year-old girl can only obediently do what she is told to do, even if what she is told to do is quite foolish.",
+        "sentenceTranslationLiteral": "But the fact still is, any five-year-old girl can only obediently do what she is asked to do, even if what she is asked to do is very foolish.",
+        "sentenceSegmentedBreakdown": [
+            {
+                "wordOrPhrase": "但",
+                "pronunciation": "dàn",
+                "gloss": "但是",
+                "glossTranslation": "but"
+            },
+            {
+                "wordOrPhrase": "事实",
+                "pronunciation": "shìshí",
+                "gloss": "事情的真相",
+                "glossTranslation": "fact"
+            },
+            {
+                "wordOrPhrase": "依然",
+                "pronunciation": "yīrán",
+                "gloss": "仍然",
+                "glossTranslation": "still, remains"
+            },
+            {
+                "wordOrPhrase": "是",
+                "pronunciation": "shì",
+                "gloss": "是",
+                "glossTranslation": "is"
+            },
+            {
+                "wordOrPhrase": "任何",
+                "pronunciation": "rènhé",
+                "gloss": "所有的",
+                "glossTranslation": "any"
+            },
+            {
+                "wordOrPhrase": "一个",
+                "pronunciation": "yīgè",
+                "gloss": "一个",
+                "glossTranslation": "one, a"
+            },
+            {
+                "wordOrPhrase": "五岁",
+                "pronunciation": "wǔ suì",
+                "gloss": "五岁的",
+                "glossTranslation": "five years old"
+            },
+            {
+                "wordOrPhrase": "女孩",
+                "pronunciation": "nǚhái",
+                "gloss": "小女孩",
+                "glossTranslation": "girl"
+            },
+            {
+                "wordOrPhrase": "总是",
+                "pronunciation": "zǒngshì",
+                "gloss": "总是会",
+                "glossTranslation": "always"
+            },
+            {
+                "wordOrPhrase": "只能",
+                "pronunciation": "zhǐ néng",
+                "gloss": "只可以",
+                "glossTranslation": "can only"
+            },
+            {
+                "wordOrPhrase": "乖乖地",
+                "pronunciation": "guāiguāi de",
+                "gloss": "听话地",
+                "glossTranslation": "obediently"
+            },
+            {
+                "wordOrPhrase": "做",
+                "pronunciation": "zuò",
+                "gloss": "做",
+                "glossTranslation": "do"
+            },
+            {
+                "wordOrPhrase": "要她做的事",
+                "pronunciation": "yào tā zuò de shì",
+                "gloss": "别人让她做的事情",
+                "glossTranslation": "what she is told to do"
+            },
+            {
+                "wordOrPhrase": "即使",
+                "pronunciation": "jíshǐ",
+                "gloss": "虽然",
+                "glossTranslation": "even if"
+            },
+            {
+                "wordOrPhrase": "吩咐",
+                "pronunciation": "fēnfù",
+                "gloss": "让她做的",
+                "glossTranslation": "instructed, told to do"
+            },
+            {
+                "wordOrPhrase": "她做的事",
+                "pronunciation": "tā zuò de shì",
+                "gloss": "她被要求的事情",
+                "glossTranslation": "the things she is asked to do"
+            },
+            {
+                "wordOrPhrase": "十分",
+                "pronunciation": "shífēn",
+                "gloss": "非常",
+                "glossTranslation": "very, quite"
+            },
+            {
+                "wordOrPhrase": "愚蠢",
+                "pronunciation": "yúchǔn",
+                "gloss": "不聪明的",
+                "glossTranslation": "foolish"
+            }
+        ],
+        "sentenceCommentsOrWarnings": "这个句子表达了小女孩听从大人要求的无奈之情，并隐含了一种对这些要求是否合理的质疑。",
+        "sentenceRecommendedVersion": "但事实依然是，任何一个五岁的小女孩只能乖乖地听从吩咐，即使要求她做的事情非常愚蠢。"
+    }`;
+
+                    const userPrompt = `<usersNativeLanguage>${l1Language}</usersNativeLanguage>
 <sentenceBeingStudied>${sentence}</sentenceBeingStudied>`;
 
                     // TODO: use special tokens to demarcate the sentence, 
@@ -239,7 +299,8 @@ Now, here are your inputs for this case:
                         body: JSON.stringify({
                             model: model, // Use the selected model
                             messages: [
-                                { role: 'user', content: prompt }
+                                { role: 'system', content: systemPrompt },
+                                { role: 'user',   content: userPrompt }
                             ],
                             response_format: {
                                 "type": "json_schema",
@@ -285,17 +346,13 @@ Now, here are your inputs for this case:
                                                         "wordOrPhrase":  {"type": "string",  "description": "The word or phrase from the sentence."},
                                                         "pronunciation": {"type": "string", "description": "The accurate pronunciation of the word or phrase (e.g., pinyin, IPA)."},
                                                         "gloss":       {"type": "string", "description": "A short definition or gloss in the languageBeingLearned."},
-                                                        "explanation": {"type": "string", "description": "An explanatory alternative in the languageBeingLearned."},
-                                                        "glossTranslation": {"type": "string", "description": "A short definition or gloss in the usersNativeLanguage."},
-                                                        "explanationTranslation": {"type": "string", "description": "An explanatory alternative in the usersNativeLanguage."}
+                                                        "glossTranslation": {"type": "string", "description": "A short definition or gloss in the usersNativeLanguage."}
                                                     },
                                                     "required": [
                                                         "wordOrPhrase",
                                                         "pronunciation",
                                                         "gloss",
-                                                        "glossTranslation",
-                                                        "explanation",
-                                                        "explanationTranslation"
+                                                        "glossTranslation"
                                                     ],
                                                     "additionalProperties": false
                                                 }
