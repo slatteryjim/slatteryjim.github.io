@@ -178,7 +178,9 @@ They will provide a snippet for context, and then the particular word/phrase sni
 
 Pretend you are a language mentor and fluent speaker of their target language, and you should only reply in that language.
 You are very encouraging of them to succeed in their studies.
-Offer the following type of explanations, always responding in the target language of the sentence:
+Offer a segmented breakdown of their snippet, always responding in the target language of the sentence.
+
+Their snippet selection might begin or end on an incorrect or awkward word/phrase boundary, so please do correct the word or phrase boundaries in your response, to educate the user.
 
 Include the accurate pronunciation (e.g., pinyin) and an explanatory alternative in the target language. An ${l1Language} gloss may be provided as well.
 
@@ -189,7 +191,15 @@ See the following example inputs and response:
         <sentenceBeingStudied>但事实依然是，任何一个五岁女孩总是只能乖乖地做要她做的事，即使吩咐她做的事十分愚蠢。</sentenceBeingStudied>
         <snippetToExplain>乖乖地</snippetToExplain>
     </input>
-    <exampleResponse>guāiguāi de - 听话地</exampleResponse>
+    <exampleResponseJSON>{
+        "snippetSegmentedBreakdown": [
+            {
+                "wordOrPhrase": "乖乖地",
+                "pronunciation": "guāiguāi de",
+                "gloss": "听话地"
+            }
+        ]
+    }</exampleResponseJSON>
 </example>
 
 <example>
@@ -198,10 +208,16 @@ See the following example inputs and response:
         <sentenceBeingStudied>但事实依然是，任何一个五岁女孩总是只能乖乖地做要她做的事，即使吩咐她做的事十分愚蠢。</sentenceBeingStudied>
         <snippetToExplain>要她做的事</snippetToExplain>
     </input>
-    <exampleResponse>yào tā zuò de shì - 别人让她做的事情</exampleResponse>
-</example>
-
-Please response to the user exactly like those <exampleResponse/> examples, with no other chit-chat.`;
+    <exampleResponseJSON>{
+        "snippetSegmentedBreakdown": [
+            {
+                "wordOrPhrase": "她做的事",
+                "pronunciation": "tā zuò de shì",
+                "gloss": "她被要求的事情",
+            }
+        ]
+    }</exampleResponseJSON>
+</example>`;
 
                     const userPrompt = `<usersNativeLanguage>${l1Language}</usersNativeLanguage>
 <sentenceBeingStudied>${text}</sentenceBeingStudied>
@@ -220,6 +236,40 @@ Please response to the user exactly like those <exampleResponse/> examples, with
                                 { role: 'system', content: systemPrompt },
                                 { role: 'user',   content: userPrompt }
                             ],
+                            response_format: {
+                                "type": "json_schema",
+                                "json_schema": {
+                                    "name": "sentence_explanation",
+                                    "strict": true,
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "snippetSegmentedBreakdown": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "wordOrPhrase":  {"type": "string",  "description": "The word or phrase from the sentence."},
+                                                        "pronunciation": {"type": "string", "description": "The accurate pronunciation of the word or phrase (e.g., pinyin, IPA)."},
+                                                        "gloss":       {"type": "string", "description": "A short definition or gloss in the languageBeingLearned."},
+                                                        //"glossTranslation": {"type": "string", "description": "A short definition or gloss in the usersNativeLanguage."}
+                                                    },
+                                                    "required": [
+                                                        "wordOrPhrase",
+                                                        "pronunciation",
+                                                        "gloss",
+                                                        // "glossTranslation"
+                                                    ],
+                                                    "additionalProperties": false
+                                                }
+                                            },                                        },
+                                        "required": [
+                                            "snippetSegmentedBreakdown",
+                                        ],
+                                        "additionalProperties": false
+                                    }
+                                }
+                            },
                             max_tokens: 150,
                             temperature: 0.5
                         })
