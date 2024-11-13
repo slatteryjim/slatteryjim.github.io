@@ -270,7 +270,7 @@ See the following example inputs and response:
                                     }
                                 }
                             },
-                            max_tokens: 150,
+                            max_tokens: 1500,
                             temperature: 0.5
                         })
                     });
@@ -288,10 +288,21 @@ See the following example inputs and response:
                     if (!choice) {
                         throw new Error('No choices entry in API response: ' + JSON.stringify(data));
                     }
+                    if (choice.finish_reason !== 'stop') {
+                        throw new Error('Model did not finish processing, finish_reason: ' + choice.finish_reason);
+                    }
 
                     const content = choice.message.content.trim();
 
-                    setExplanation(content);
+                    let explanationData;
+                    try {
+                        explanationData = JSON.parse(content);
+                    } catch (parseError) {
+                        throw new Error('Failed to parse JSON response: ' + parseError.message);
+                    }
+
+                    console.log('Parsed explanation data:', explanationData);
+                    setExplanation(explanationData);
 
                 } catch (err) {
                     console.error(err);
@@ -369,9 +380,25 @@ See the following example inputs and response:
                     {loading && <div>Loading explanation...</div>}
                     {error && <div className="error">Error: {error}</div>}
                     {explanation && (
-                        <div className="explanation">
-                            <b>{selectedText}</b>:
-                            {explanation}
+                         <div className="explanation">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Word or Phrase</th>
+                                        <th>Pronunciation</th>
+                                        <th>Gloss</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {explanation.snippetSegmentedBreakdown.map((item, index) => (
+                                        <tr key={index}>
+                                            <td><strong>{item.wordOrPhrase}</strong></td>
+                                            <td>{item.pronunciation}</td>
+                                            <td>{item.gloss}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </div>
