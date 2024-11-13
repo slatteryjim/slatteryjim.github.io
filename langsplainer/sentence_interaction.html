@@ -64,7 +64,7 @@
             const [error, setError] = useState(null);
             const [showApiKey, setShowApiKey] = useState(false);
             const [selectedText, setSelectedText] = useState('');
-            const [model, setModel] = useState('gpt-3.5-turbo'); // Use a faster model for speed
+            const [model, setModel] = useState('gpt-4o-mini'); // Use a faster model for speed
             const textDivRef = useRef(null);
 
             // Load API key from localStorage or URL hash on initial render
@@ -168,11 +168,44 @@
                 try {
                     console.log('Selected text:', selectedText);
 
-                    // Prepare the prompt
-                    const prompt = `As a language assistant, please explain the following phrase in the context of the full text. Your explanation should be brief, including the pronunciation and gloss of the selected phrase. Respond only in ${l1Language}.
+                                        // Prepare the prompt
+                                        const systemPrompt = `I'd like you to be a language sentence explainer.
 
-Full Text: ${text}
-Selected Phrase: ${selectedText}`;
+The user was reading some text, and they came across a sentence that they didn't understand.
+Maybe they didn't understand one word or phrase, or maybe they knew each word, but didn't understand what the sentence as a whole meant.
+
+They will provide a snippet for context, and then the particular word/phrase snippet to focus on.
+
+Pretend you are a language mentor and fluent speaker of their target language, and you should only reply in that language.
+You are very encouraging of them to succeed in their studies.
+Offer the following type of explanations, always responding in the target language of the sentence:
+
+Include the accurate pronunciation (e.g., pinyin) and an explanatory alternative in the target language. An ${l1Language} gloss may be provided as well.
+
+See the following example inputs and response:
+<example>
+    <input>
+        <usersNativeLanguage>English</usersNativeLanguage>
+        <sentenceBeingStudied>但事实依然是，任何一个五岁女孩总是只能乖乖地做要她做的事，即使吩咐她做的事十分愚蠢。</sentenceBeingStudied>
+        <snippetToExplain>乖乖地</snippetToExplain>
+    </input>
+    <exampleResponse>guāiguāi de - 听话地</exampleResponse>
+</example>
+
+<example>
+    <input>
+        <usersNativeLanguage>English</usersNativeLanguage>
+        <sentenceBeingStudied>但事实依然是，任何一个五岁女孩总是只能乖乖地做要她做的事，即使吩咐她做的事十分愚蠢。</sentenceBeingStudied>
+        <snippetToExplain>要她做的事</snippetToExplain>
+    </input>
+    <exampleResponse>yào tā zuò de shì - 别人让她做的事情</exampleResponse>
+</example>
+
+Please response to the user exactly like those <exampleResponse/> examples, with no other chit-chat.`;
+
+                    const userPrompt = `<usersNativeLanguage>${l1Language}</usersNativeLanguage>
+<sentenceBeingStudied>${text}</sentenceBeingStudied>
+<snippetToExplain>${selectedText}</snippetToExplain>`;
 
                     // Make the API call with the selected model
                     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -184,7 +217,8 @@ Selected Phrase: ${selectedText}`;
                         body: JSON.stringify({
                             model: model, // Use the selected model
                             messages: [
-                                { role: 'user', content: prompt }
+                                { role: 'system', content: systemPrompt },
+                                { role: 'user',   content: userPrompt }
                             ],
                             max_tokens: 150,
                             temperature: 0.5
@@ -247,6 +281,8 @@ Selected Phrase: ${selectedText}`;
                         <label>
                             Model:
                             <select value={model} onChange={handleModelChange}>
+                                <option value="gpt-4o">gpt-4o</option>
+                                <option value="gpt-4o-mini">gpt-4o-mini</option>
                                 <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
                                 <option value="gpt-4">gpt-4</option>
                             </select>
@@ -284,8 +320,8 @@ Selected Phrase: ${selectedText}`;
                     {error && <div className="error">Error: {error}</div>}
                     {explanation && (
                         <div className="explanation">
-                            <h3>Explanation for: "{selectedText}"</h3>
-                            <p>{explanation}</p>
+                            <b>{selectedText}</b>:
+                            {explanation}
                         </div>
                     )}
                 </div>
