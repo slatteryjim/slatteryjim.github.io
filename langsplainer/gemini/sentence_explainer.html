@@ -70,7 +70,7 @@
         const models = [
             "gemini-2.0-flash-exp",
             "gemini-1.5-flash-8b",
-            "gemini-exp-1206",
+            "gemini-exp-1206"
         ]
 
         const SentenceExplainer = () => {
@@ -84,20 +84,30 @@
             const [model, setModel] = useState(models[0]);
             const [stats, setStats] = useState(null); // State for storing stats
 
-            // Load API key from localStorage or URL hash on initial render
+            // Load API key and sentence from localStorage or URL parameters on initial render
             useEffect(() => {
-                // Attempt to load from localStorage
-                const storedApiKey = localStorage.getItem('gemini_api_key');
-                if (storedApiKey) {
-                    setApiKey(storedApiKey);
+                const urlParams = new URLSearchParams(window.location.search);
+                const sentenceFromUrl = urlParams.get('sentence');
+                const apiKeyFromUrl = urlParams.get('apiKey');
+
+                // Prioritize URL parameters over localStorage
+                if (sentenceFromUrl) {
+                    setSentence(decodeURIComponent(sentenceFromUrl));
+                }
+
+                if (apiKeyFromUrl) {
+                    setApiKey(decodeURIComponent(apiKeyFromUrl));
+                    localStorage.setItem('gemini_api_key', decodeURIComponent(apiKeyFromUrl));
                 } else {
-                    // Fallback to URL hash
-                    const hash = window.location.hash.substring(1);
-                    if (hash.startsWith('apiKey=')) {
-                        const key = decodeURIComponent(hash.split('=')[1]);
-                        setApiKey(key);
-                        localStorage.setItem('gemini_api_key', key);
+                    const storedApiKey = localStorage.getItem('gemini_api_key');
+                    if (storedApiKey) {
+                        setApiKey(storedApiKey);
                     }
+                }
+                
+                // If a sentence is provided via URL, automatically trigger the explanation
+                if (sentenceFromUrl) {
+                    handleSubmit(null, decodeURIComponent(sentenceFromUrl));
                 }
             }, []);
 
@@ -118,9 +128,10 @@
                 setModel(e.target.value);
             };
 
-            // Function to handle form submission
-            const handleSubmit = async (e) => {
-                e.preventDefault();
+            // Function to handle form submission or direct call from URL param
+            const handleSubmit = async (e, sentenceFromUrl = null) => {
+                if (e) e.preventDefault(); // Prevent default form submission if triggered by form
+                const currentSentence = sentenceFromUrl || sentence; // Use sentence from URL if provided
                 setError(null);
                 setStats(null); // Reset stats on new submission
 
@@ -129,7 +140,7 @@
                     return;
                 }
 
-                if (!sentence.trim()) {
+                if (!currentSentence.trim()) {
                     setError('Please enter a sentence to process.');
                     return;
                 }
@@ -142,7 +153,7 @@
                 let ttfb;
 
                 try {
-                    console.log('Input sentence:', sentence);
+                    console.log('Input sentence:', currentSentence);
 
                     // Prepare the prompt for Gemini
                     const systemPrompt = `I'd like you to be a language sentence explainer.
@@ -176,7 +187,7 @@ Here's an example response:
 
 And now here is the sentence provided by the user:
 `;
-                    const userPrompt = sentence;
+                    const userPrompt = currentSentence;
                     const prompt = systemPrompt + userPrompt;
                     const inputTokenCount = prompt.length; // Rough estimate of input tokens
 
@@ -267,7 +278,7 @@ And now here is the sentence provided by the user:
                     <h1>Sentence Explainer</h1>
                     <p>
                         This tool allows you to input a sentence in your target language and receive a detailed breakdown to aid in your language learning.<br />
-                        First, provide your Gemini API key, either through the text input field or URL hash (it will also be stored in the browser local storage for convenience).<br />
+                        First, provide your Gemini API key, either through the text input field or URL parameter (it will also be stored in the browser local storage for convenience).<br />
                         Enter the sentence you want to understand and click "Explain Sentence". The tool will send a prompt to Gemini API to generate a detailed breakdown.<br />
                         The returned explanation is displayed below.
                     </p>
