@@ -83,8 +83,9 @@
             const [showApiKey, setShowApiKey] = useState(false);
             const [model, setModel] = useState(models[0]);
             const [stats, setStats] = useState(null); // State for storing stats
+            const [isReady, setIsReady] = useState(false); // New state to track readiness
 
-            // Load API key and sentence from localStorage or URL parameters on initial render
+            // Load API key and sentence, then set isReady
             useEffect(() => {
                 const urlParams = new URLSearchParams(window.location.search);
                 const sentenceFromUrl = urlParams.get('sentence');
@@ -95,21 +96,30 @@
                     setSentence(decodeURIComponent(sentenceFromUrl));
                 }
 
+                const handleApiKey = (key) => {
+                    if (key) {
+                        setApiKey(key);
+                        localStorage.setItem('gemini_api_key', key);
+                    }
+                    setIsReady(true); // Everything is ready now
+                };
+
                 if (apiKeyFromUrl) {
-                    setApiKey(decodeURIComponent(apiKeyFromUrl));
-                    localStorage.setItem('gemini_api_key', decodeURIComponent(apiKeyFromUrl));
+                    handleApiKey(decodeURIComponent(apiKeyFromUrl));
                 } else {
                     const storedApiKey = localStorage.getItem('gemini_api_key');
-                    if (storedApiKey) {
-                        setApiKey(storedApiKey);
-                    }
-                }
-                
-                // If a sentence is provided via URL, automatically trigger the explanation
-                if (sentenceFromUrl) {
-                    handleSubmit(null, decodeURIComponent(sentenceFromUrl));
+                    handleApiKey(storedApiKey);
                 }
             }, []);
+
+            // Trigger handleSubmit when isReady changes and sentence is available
+            useEffect(() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const sentenceFromUrl = urlParams.get('sentence');
+                if (isReady && sentenceFromUrl) {
+                    handleSubmit(null, decodeURIComponent(sentenceFromUrl));
+                }
+            }, [isReady]);
 
             // Function to handle API key changes
             const handleApiKeyChange = (e) => {
