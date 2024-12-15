@@ -66,6 +66,14 @@
         th {
             background-color: #eaeaea;
         }
+
+        .highlight-a1 { background-color: transparent; } /* No highlight */
+        .highlight-a2 { background-color: #FFF9C4; } /* Light Yellow */
+        .highlight-b1 { background-color: #FFE082; } /* Soft Amber */
+        .highlight-b2 { background-color: #FFB74D; } /* Light Orange */
+        .highlight-c1 { background-color: #FF8A65; } /* Coral Orange */
+        .highlight-c2 { background-color: #FF7043; } /* Deep Orange */
+        .highlight-none { background-color: #f0f0f0; } /* Default background */
     </style>
 </head>
 <body>
@@ -166,8 +174,8 @@ ${sentence}`;
                                         "type": "object",
                                         "properties": {
                                             "text": { "type": "string" },
-                                            "difficulty": { 
-                                                "type": ["string", "null"], 
+                                            "difficulty": {
+                                                "type": ["string", "null"],
                                                 "enum": ["A1", "A2", "B1", "B2", "C1", "C2", null]
                                             }
                                         },
@@ -242,6 +250,53 @@ ${sentence}`;
                 }
             };
 
+
+             // Function to get the highlight class for a given difficulty level
+             const getHighlightClass = (difficulty) => {
+                switch (difficulty) {
+                    case 'A1':
+                        return 'highlight-a1';
+                    case 'A2':
+                        return 'highlight-a2';
+                    case 'B1':
+                        return 'highlight-b1';
+                    case 'B2':
+                        return 'highlight-b2';
+                    case 'C1':
+                        return 'highlight-c1';
+                    case 'C2':
+                        return 'highlight-c2';
+                    default:
+                         return 'highlight-none';
+                }
+            };
+
+
+             // Function to render the reconstructed sentence with highlighting
+             const renderHighlightedSentence = () => {
+                if (!analysis || !analysis.sentenceAnalysis) {
+                    return null;
+                }
+
+                return (
+                    <p>
+                        {analysis.sentenceAnalysis.map((item, index) => {
+                            const highlightClass = getHighlightClass(item.difficulty);
+                            return (
+                                <span
+                                    key={index}
+                                    className={highlightClass}
+                                >
+                                    {item.text}
+                                </span>
+                            );
+                        })}
+                    </p>
+                );
+            };
+
+
+
             return (
                 <div>
                     <h1>Sentence Difficulty Analyzer</h1>
@@ -307,9 +362,7 @@ ${sentence}`;
                                     </tbody>
                                 </table>
                                 <h3>Reconstructed Sentence:</h3>
-                                <p>
-                                    {analysis.sentenceAnalysis.map((item) => item.text).join('')}
-                                </p>
+                                {renderHighlightedSentence()}
                             </div>
                         </div>
                     )}
