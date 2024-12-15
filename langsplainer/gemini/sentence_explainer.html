@@ -199,7 +199,6 @@ And now here is the sentence provided by the user:
 `;
                     const userPrompt = currentSentence;
                     const prompt = systemPrompt + userPrompt;
-                    const inputTokenCount = prompt.length; // Rough estimate of input tokens
 
                     // Make the API call to Gemini
                     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
@@ -251,28 +250,22 @@ And now here is the sentence provided by the user:
                     const explanationText = candidate.content.parts[0].text;
                     setExplanation(explanationText);
 
-                    // Estimate output tokens (Gemini API doesn't provide exact token counts)
-                    const outputTokenCount = explanationText.length; // Rough estimate
+                    // Get token counts from response
+                    const promptTokenCount = data.usageMetadata.promptTokenCount;
+                    const candidatesTokenCount = data.usageMetadata.candidatesTokenCount;
+                    const totalTokenCount = data.usageMetadata.totalTokenCount;
 
                     // Calculate stats
                     const totalDuration = endTime - startTime;
-                    const tokensPerSecond = (inputTokenCount + outputTokenCount) / (totalDuration / 1000);
+                    const tokensPerSecond = totalTokenCount / (totalDuration / 1000);
 
-                    setStats({
-                        ttfb: ttfb.toFixed(2),
-                        totalDuration: totalDuration.toFixed(2),
-                        inputTokens: inputTokenCount,
-                        outputTokens: outputTokenCount,
-                        tokensPerSecond: tokensPerSecond.toFixed(2),
-                    });
+                    // Format stats string
+                    const statsString = `Model: ${model} | TTFB: ${ttfb.toFixed(2)} ms | Total Duration: ${totalDuration.toFixed(2)} ms | Prompt Tokens: ${promptTokenCount} | Candidates Tokens: ${candidatesTokenCount} | Total Tokens: ${totalTokenCount} | Tokens/Second: ${tokensPerSecond.toFixed(2)}`;
+
+                    setStats(statsString);
 
                     // Log stats to console
-                    console.log(`Model: ${model}`);
-                    console.log(`TTFB: ${ttfb.toFixed(2)} ms`);
-                    console.log(`Total Duration: ${totalDuration.toFixed(2)} ms`);
-                    console.log(`Input Tokens: ${inputTokenCount}`);
-                    console.log(`Output Tokens: ${outputTokenCount}`);
-                    console.log(`Tokens/Second: ${tokensPerSecond.toFixed(2)}`);
+                    console.log(statsString);
 
                 } catch (err) {
                     console.error(err);
@@ -350,12 +343,7 @@ And now here is the sentence provided by the user:
                     {/* Display Stats */}
                     {stats && (
                         <div className="stats">
-                            <p><b>Model:</b> {model}</p>
-                            <p><b>TTFB:</b> {stats.ttfb} ms</p>
-                            <p><b>Total Duration:</b> {stats.totalDuration} ms</p>
-                            <p><b>Input Tokens (estimate):</b> {stats.inputTokens}</p>
-                            <p><b>Output Tokens (estimate):</b> {stats.outputTokens}</p>
-                            <p><b>Tokens/Second (estimate):</b> {stats.tokensPerSecond}</p>
+                            <p>{stats}</p>
                         </div>
                     )}
                 </div>
