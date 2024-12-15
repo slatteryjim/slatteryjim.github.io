@@ -67,6 +67,12 @@
     <script type="text/babel" data-type="module" data-presets="env,react,typescript">
         const { useState, useEffect, StrictMode } = React;
 
+        const models = [
+            "gemini-2.0-flash-exp",
+            "gemini-1.5-flash-8b",
+            "gemini-exp-1206",
+        ]
+
         const SentenceExplainer = () => {
             // State variables
             const [sentence, setSentence] = useState('国央企如此热切拥抱大模型或与一道新政有关。');
@@ -75,7 +81,7 @@
             const [loading, setLoading] = useState(false);
             const [error, setError] = useState(null);
             const [showApiKey, setShowApiKey] = useState(false);
-            const [model, setModel] = useState('gemini-2.0-flash-exp');
+            const [model, setModel] = useState(models[0]);
             const [stats, setStats] = useState(null); // State for storing stats
 
             // Load API key from localStorage or URL hash on initial render
@@ -289,8 +295,11 @@ And now here is the sentence provided by the user:
                         <label>
                             Model:
                             <select value={model} onChange={handleModelChange}>
-                                <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp</option>
-                                <option value="gemini-exp-1206">gemini-exp-1206</option>
+                                {models.map((model) => (
+                                    <option key={model} value={model}>
+                                        {model}
+                                    </option>
+                                ))}
                             </select>
                         </label>
                         <br />
