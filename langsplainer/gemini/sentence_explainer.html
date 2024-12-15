@@ -59,6 +59,13 @@
             margin-top: 10px;
             color: #666;
         }
+        .results-container {
+            display: flex;
+            gap: 20px; /* Spacing between columns */
+        }
+        .model-column {
+            flex: 1; /* Each column takes equal width */
+        }
     </style>
 </head>
 <body>
@@ -77,13 +84,11 @@
             // State variables
             const [sentence, setSentence] = useState('国央企如此热切拥抱大模型或与一道新政有关。');
             const [apiKey, setApiKey] = useState('');
-            const [explanation, setExplanation] = useState(null);
+            const [results, setResults] = useState({}); // Store results for all models
             const [loading, setLoading] = useState(false);
             const [error, setError] = useState(null);
             const [showApiKey, setShowApiKey] = useState(false);
-            const [model, setModel] = useState(models[0]);
-            const [stats, setStats] = useState(null); // State for storing stats
-            const [isReady, setIsReady] = useState(false); // New state to track readiness
+            const [isReady, setIsReady] = useState(false);
 
             // Load API key and sentence, then set isReady
             useEffect(() => {
@@ -133,40 +138,59 @@
                 setShowApiKey(!showApiKey);
             };
 
-            // Function to handle model selection changes
-            const handleModelChange = (e) => {
-                setModel(e.target.value);
-            };
-
             // Function to handle form submission or direct call from URL param
             const handleSubmit = async (e, sentenceFromUrl = null) => {
-                if (e) e.preventDefault(); // Prevent default form submission if triggered by form
-                const currentSentence = sentenceFromUrl || sentence; // Use sentence from URL if provided
+                if (e) e.preventDefault();
+                const currentSentence = sentenceFromUrl || sentence;
                 setError(null);
-                setStats(null); // Reset stats on new submission
+                setResults({}); // Clear previous results
+                setLoading(true);
 
                 if (!apiKey) {
                     setError('Please provide your Gemini API key.');
+                    setLoading(false);
                     return;
                 }
 
                 if (!currentSentence.trim()) {
                     setError('Please enter a sentence to process.');
+                    setLoading(false);
                     return;
                 }
 
-                setLoading(true);
+                models.forEach(async (model) => {
+                    try {
+                        const result = await queryGemini(model, currentSentence);
+                        // Update results for the specific model as it completes
+                        setResults((prevResults) => ({
+                            ...prevResults,
+                            [model]: result,
+                        }));
+                    } catch (err) {
+                        console.error(`Error with model ${model}:`, err);
+                        // Update results with an error for the specific model
+                        setResults((prevResults) => ({
+                            ...prevResults,
+                            [model]: {
+                                model: model,
+                                explanation: null,
+                                stats: `Error: ${err.message || 'An unexpected error occurred.'}`,
+                            },
+                        }));
+                    }
+                });
 
-                // --- Performance and Stats Measurement Start ---
+                setLoading(false);
+            };
+
+            // Function to query a single Gemini model
+            const queryGemini = async (model, currentSentence) => {
                 const startTime = performance.now();
                 let endTime;
                 let ttfb;
 
-                try {
-                    console.log('Input sentence:', currentSentence);
-
-                    // Prepare the prompt for Gemini
-                    const systemPrompt = `I'd like you to be a language sentence explainer.
+                // Prepare the prompt
+                const systemPrompt = `I'd like you to be a language sentence explainer.
 
 The user was reading some text, and they came across a sentence that they didn't understand.
 Maybe they didn't understand one word or phrase, or maybe they knew each word, but didn't understand what the sentence as a whole meant.
@@ -197,83 +221,66 @@ Here's an example response:
 
 And now here is the sentence provided by the user:
 `;
-                    const userPrompt = currentSentence;
-                    const prompt = systemPrompt + userPrompt;
+                const userPrompt = currentSentence;
+                const prompt = systemPrompt + userPrompt;
 
-                    // Make the API call to Gemini
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            contents: [{
-                                role: "user",
-                                parts: [{ text: prompt }]
-                            }]
-                        })
-                    });
+                // Make the API call
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            role: "user",
+                            parts: [{ text: prompt }]
+                        }]
+                    })
+                });
 
-                    // Measure Time To First Byte (TTFB)
-                    const reader = response.body.getReader();
-                    const firstChunk = await reader.read();
-                    ttfb = performance.now() - startTime;
-                    const decoder = new TextDecoder();
-                    let responseText = decoder.decode(firstChunk.value || new Uint8Array, { stream: true });
+                // Measure TTFB
+                const reader = response.body.getReader();
+                const firstChunk = await reader.read();
+                ttfb = performance.now() - startTime;
+                const decoder = new TextDecoder();
+                let responseText = decoder.decode(firstChunk.value || new Uint8Array, { stream: true });
 
-                    while (!firstChunk.done) {
-                        const nextChunk = await reader.read();
-                        if (nextChunk.done) break;
-                        responseText += decoder.decode(nextChunk.value, { stream: true });
-                    }
-
-                    // Handle non-OK responses
-                    if (!response.ok) {
-                        const errorData = JSON.parse(responseText); // Parse the error response as JSON
-                        throw new Error(errorData.error.message || 'API request failed.');
-                    }
-
-                    const data = JSON.parse(responseText); // Parse the whole response as JSON
-                    console.log('API response:', data);
-
-                    endTime = performance.now(); // Capture end time after receiving full response
-
-                    if (!data.candidates || data.candidates.length === 0) {
-                        throw new Error("No candidates returned in API response.");
-                    }
-                    const candidate = data.candidates[0];
-
-                    if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0) {
-                      throw new Error("No content returned for candidate.");
-                    }
-
-                    const explanationText = candidate.content.parts[0].text;
-                    setExplanation(explanationText);
-
-                    // Get token counts from response
-                    const promptTokenCount = data.usageMetadata.promptTokenCount;
-                    const candidatesTokenCount = data.usageMetadata.candidatesTokenCount;
-                    const totalTokenCount = data.usageMetadata.totalTokenCount;
-
-                    // Calculate stats
-                    const totalDuration = endTime - startTime;
-                    const tokensPerSecond = totalTokenCount / (totalDuration / 1000);
-
-                    // Format stats string
-                    const statsString = `Model: ${model} | TTFB: ${ttfb.toFixed(2)} ms | Total Duration: ${totalDuration.toFixed(2)} ms | Prompt Tokens: ${promptTokenCount} | Candidates Tokens: ${candidatesTokenCount} | Total Tokens: ${totalTokenCount} | Tokens/Second: ${tokensPerSecond.toFixed(2)}`;
-
-                    setStats(statsString);
-
-                    // Log stats to console
-                    console.log(statsString);
-
-                } catch (err) {
-                    console.error(err);
-                    setError(err.message || 'An unexpected error occurred.');
-                } finally {
-                    setLoading(false);
+                while (!firstChunk.done) {
+                    const nextChunk = await reader.read();
+                    if (nextChunk.done) break;
+                    responseText += decoder.decode(nextChunk.value, { stream: true });
                 }
-                // --- Performance and Stats Measurement End ---
+
+                // Handle non-OK responses
+                if (!response.ok) {
+                    const errorData = JSON.parse(responseText);
+                    throw new Error(errorData.error.message || 'API request failed.');
+                }
+
+                const data = JSON.parse(responseText);
+                console.log(`API response for ${model}:`, data);
+
+                endTime = performance.now();
+
+                // Extract explanation and stats
+                let explanation = null;
+                if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0) {
+                  explanation = data.candidates[0].content.parts[0].text;
+                } else {
+                  explanation = "No explanation generated.";
+                }
+
+                const promptTokenCount = data.usageMetadata.promptTokenCount;
+                const candidatesTokenCount = data.usageMetadata.candidatesTokenCount;
+                const totalTokenCount = data.usageMetadata.totalTokenCount;
+                const totalDuration = endTime - startTime;
+                const tokensPerSecond = totalTokenCount / (totalDuration / 1000);
+
+                const stats = `TTFB: ${ttfb.toFixed(2)} ms | Total Duration: ${totalDuration.toFixed(2)} ms | Prompt Tokens: ${promptTokenCount} | Candidates Tokens: ${candidatesTokenCount} | Total Tokens: ${totalTokenCount} | Tokens/Second: ${tokensPerSecond.toFixed(2)}`;
+
+                console.log(`Stats for ${model}: ${stats}`);
+
+                return { model, explanation, stats };
             };
 
             return (
@@ -307,17 +314,6 @@ And now here is the sentence provided by the user:
                         </label>
                         <br />
                         <label>
-                            Model:
-                            <select value={model} onChange={handleModelChange}>
-                                {models.map((model) => (
-                                    <option key={model} value={model}>
-                                        {model}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
-                        <br />
-                        <label>
                             Enter Sentence:
                             <textarea
                                 value={sentence}
@@ -332,20 +328,25 @@ And now here is the sentence provided by the user:
                         </button>
                     </form>
                     {error && <div className="error">Error: {error}</div>}
-                    {explanation && (
-                        <div>
-                            <h2>Explanation:</h2>
-                            <div className="explanation">
-                                <pre>{explanation}</pre>
+
+                    {/* Results Display */}
+                    <div className="results-container">
+                        {models.map((model) => (
+                            <div key={model} className="model-column">
+                                <h2>{model}</h2>
+                                {results[model] && results[model].explanation && (
+                                    <div className="explanation">
+                                        <pre>{results[model].explanation}</pre>
+                                    </div>
+                                )}
+                                {results[model] && (
+                                    <div className="stats">
+                                        <p>{results[model].stats}</p>
+                                    </div>
+                                )}
                             </div>
-                        </div>
-                    )}
-                    {/* Display Stats */}
-                    {stats && (
-                        <div className="stats">
-                            <p>{stats}</p>
-                        </div>
-                    )}
+                        ))}
+                    </div>
                 </div>
             );
         };
