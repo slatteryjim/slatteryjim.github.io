@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sentence Explainer with OpenAI</title>
+    <!-- React and ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Optional: Include a CSS library or custom styles here -->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #fafafa;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 10px;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+        input[type="text"], input[type="password"] {
+            padding: 8px;
+            margin-top: 10px;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 10px 20px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+        .explanation {
+            background-color: #f0f0f0;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .explanation h3 {
+            margin-top: 0;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+        .toggle-button {
+            margin-left: 10px;
+            padding: 5px 10px;
+            font-size: 0.9em;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- Your TypeScript and JSX Code -->
+    <script type="text/babel" data-type="module" data-presets="env,react,typescript">
+        const { useState, useEffect, StrictMode } = React;
+
+        const SentenceExplainer = () => {
+            // State variables
+            const [sentence, setSentence] = useState('格拉苏蒂原创2021年新品机芯倒装手工雕花中国新年限量款偏心绿金参议员万年历。');
+            const [apiKey, setApiKey] = useState('');
+            const [l1Language, setL1Language] = useState('English');
+            const [explanation, setExplanation] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
+            const [showApiKey, setShowApiKey] = useState(false);
+            const [model, setModel] = useState('gpt-4o-mini'); // Default model
+
+            // Load API key from localStorage or URL hash on initial render
+            useEffect(() => {
+                // Attempt to load from localStorage
+                const storedApiKey = localStorage.getItem('openai_api_key');
+                if (storedApiKey) {
+                    setApiKey(storedApiKey);
+                } else {
+                    // Fallback to URL hash
+                    const hash = window.location.hash.substring(1);
+                    if (hash.startsWith('apiKey=')) {
+                        const key = decodeURIComponent(hash.split('=')[1]);
+                        setApiKey(key);
+                        localStorage.setItem('openai_api_key', key);
+                    }
+                }
+            }, []);
+
+            // Function to handle API key changes
+            const handleApiKeyChange = (e) => {
+                const value = e.target.value;
+                setApiKey(value);
+                localStorage.setItem('openai_api_key', value);
+            };
+
+            // Function to handle L1 language changes
+            const handleL1LanguageChange = (e) => {
+                setL1Language(e.target.value);
+            };
+
+            // Function to handle model selection changes
+            const handleModelChange = (e) => {
+                setModel(e.target.value);
+            };
+
+            // Function to toggle API key visibility
+            const toggleApiKeyVisibility = () => {
+                setShowApiKey(!showApiKey);
+            };
+
+            // Function to handle form submission
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setError(null);
+
+                if (!apiKey) {
+                    setError('Please provide your OpenAI API key.');
+                    return;
+                }
+
+                if (!sentence.trim()) {
+                    setError('Please enter a sentence to process.');
+                    return;
+                }
+
+                setLoading(true);
+
+                try {
+                    console.log('Input sentence:', sentence);
+
+                    const maxOutputTokens = 16384; // max output tokens currently supported by gpt-4o-mini
+
+                    // Prepare the prompt
+                    const systemPrompt = `I'd like you to be a language sentence explainer.
+
+The user was reading some text, and they came across a sentence that they didn't understand.
+Maybe they didn't understand one word or phrase, or maybe they knew each word, but didn't understand what the sentence as a whole meant.
+
+They will provide a snippet for context, and then the particular sentence to focus on.
+
+Pretend you are a language mentor and fluent speaker of their target language, and you should only reply in that language.
+You are very encouraging of them to succeed in their studies.
+When a user provides a sentence, the GPT will offer the following types of explanations, always responding in the target language of the sentence:
+
+- **Original Sentence**: List the original sentence at the beginning.
+- **Simplified Sentence**: A simplified version of the sentence, using easy-to-understand vocabulary while retaining the original nuances.
+- **Greatly Simplified Sentence**: An even more simplified version of the sentence, focusing on basic vocabulary and structure, but still maintaining the original meaning. It's ok if this runs longer, working around the limitations of the constrained vocabulary.
+- **${l1Language} Translation**: A clear ${l1Language} translation of the sentence.
+- **Literal ${l1Language} Translation**: A word-for-word ${l1Language} translation that closely follows the structure and grammar of the original sentence, even if it results in stilted language.
+- **Segmented Sentence Breakdown**: A breakdown of the sentence into each word or important phrase. For each word/phrase, include the accurate pronunciation (e.g., pinyin) and an explanatory alternative in the target language. An ${l1Language} gloss may be provided as well.
+- **Comments or Warnings**: Provide any comments or warnings about the sentence.
+- **Recommended Version**: Provide your recommended version of the sentence, applying any improvements you feel are appropriate.
+
+<example>
+    Input: <usersNativeLanguage>English</usersNativeLanguage>
+<sentenceBeingStudied>但事实依然是，任何一个五岁女孩总是只能乖乖地做要她做的事，即使吩咐她做的事十分愚蠢。</sentenceBeingStudied>
+
+    You would reply with this JSON:
+    {
+        "sentenceOriginal": "但事实依然是，任何一个五岁女孩总是只能乖乖地做要她做的事，即使吩咐她做的事十分愚蠢。",
+        "languageBeingLearned": "中文",
+        "usersNativeLanguage": "English",
+        "sentenceSimplified": "但是事实还是这样：任何五岁的小女孩只能乖乖地做她被要求做的事情，即使那些事情很愚蠢。",
+        "sentenceSimplifiedGreatly": "但是事实是，五岁的小女孩总是只能听话地做大人要她做的事情，即使那些事情很笨。",
+        "sentenceTranslation": "But the fact remains that any five-year-old girl can only obediently do what she is told to do, even if what she is told to do is quite foolish.",
+        "sentenceTranslationLiteral": "But the fact still is, any five-year-old girl can only obediently do what she is asked to do, even if what she is asked to do is very foolish.",
+        "sentenceSegmentedBreakdown": [
+            {
+                "wordOrPhrase": "但",
+                "pronunciation": "dàn",
+                "gloss": "但是",
+                "glossTranslation": "but"
+            },
+            {
+                "wordOrPhrase": "事实",
+                "pronunciation": "shìshí",
+                "gloss": "事情的真相",
+                "glossTranslation": "fact"
+            },
+            {
+                "wordOrPhrase": "依然",
+                "pronunciation": "yīrán",
+                "gloss": "仍然",
+                "glossTranslation": "still, remains"
+            },
+            {
+                "wordOrPhrase": "是",
+                "pronunciation": "shì",
+                "gloss": "是",
+                "glossTranslation": "is"
+            },
+            {
+                "wordOrPhrase": "任何",
+                "pronunciation": "rènhé",
+                "gloss": "所有的",
+                "glossTranslation": "any"
+            },
+            {
+                "wordOrPhrase": "一个",
+                "pronunciation": "yīgè",
+                "gloss": "一个",
+                "glossTranslation": "one, a"
+            },
+            {
+                "wordOrPhrase": "五岁",
+                "pronunciation": "wǔ suì",
+                "gloss": "五岁的",
+                "glossTranslation": "five years old"
+            },
+            {
+                "wordOrPhrase": "女孩",
+                "pronunciation": "nǚhái",
+                "gloss": "小女孩",
+                "glossTranslation": "girl"
+            },
+            {
+                "wordOrPhrase": "总是",
+                "pronunciation": "zǒngshì",
+                "gloss": "总是会",
+                "glossTranslation": "always"
+            },
+            {
+                "wordOrPhrase": "只能",
+                "pronunciation": "zhǐ néng",
+                "gloss": "只可以",
+                "glossTranslation": "can only"
+            },
+            {
+                "wordOrPhrase": "乖乖地",
+                "pronunciation": "guāiguāi de",
+                "gloss": "听话地",
+                "glossTranslation": "obediently"
+            },
+            {
+                "wordOrPhrase": "做",
+                "pronunciation": "zuò",
+                "gloss": "做",
+                "glossTranslation": "do"
+            },
+            {
+                "wordOrPhrase": "要她做的事",
+                "pronunciation": "yào tā zuò de shì",
+                "gloss": "别人让她做的事情",
+                "glossTranslation": "what she is told to do"
+            },
+            {
+                "wordOrPhrase": "即使",
+                "pronunciation": "jíshǐ",
+                "gloss": "虽然",
+                "glossTranslation": "even if"
+            },
+            {
+                "wordOrPhrase": "吩咐",
+                "pronunciation": "fēnfù",
+                "gloss": "让她做的",
+                "glossTranslation": "instructed, told to do"
+            },
+            {
+                "wordOrPhrase": "她做的事",
+                "pronunciation": "tā zuò de shì",
+                "gloss": "她被要求的事情",
+                "glossTranslation": "the things she is asked to do"
+            },
+            {
+                "wordOrPhrase": "十分",
+                "pronunciation": "shífēn",
+                "gloss": "非常",
+                "glossTranslation": "very, quite"
+            },
+            {
+                "wordOrPhrase": "愚蠢",
+                "pronunciation": "yúchǔn",
+                "gloss": "不聪明的",
+                "glossTranslation": "foolish"
+            }
+        ],
+        "sentenceCommentsOrWarnings": "这个句子表达了小女孩听从大人要求的无奈之情，并隐含了一种对这些要求是否合理的质疑。",
+        "sentenceRecommendedVersion": "但事实依然是，任何一个五岁的小女孩只能乖乖地听从吩咐，即使要求她做的事情非常愚蠢。"
+    }`;
+
+                    const userPrompt = `<usersNativeLanguage>${l1Language}</usersNativeLanguage>
+<sentenceBeingStudied>${sentence}</sentenceBeingStudied>`;
+
+                    // TODO: use special tokens to demarcate the sentence, 
+                    // and also prevent the template variables from using these special tokens!
+
+                    // Make the API call with the selected model
+                    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: model, // Use the selected model
+                            messages: [
+                                { role: 'system', content: systemPrompt },
+                                { role: 'user',   content: userPrompt }
+                            ],
+                            response_format: {
+                                "type": "json_schema",
+                                "json_schema": {
+                                    "name": "sentence_explanation",
+                                    "strict": true,
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "sentenceOriginal": {
+                                                "type": "string",
+                                                "description": "The original sentence provided by the user."
+                                            },
+                                            "languageBeingLearned": {
+                                                "type": "string",
+                                                "description": "The detected language of the sentence the user is reading (L2)."
+                                            },
+                                            "usersNativeLanguage": {
+                                                "type": "string",
+                                                "description": "The native language of the user (L1), used for translations."
+                                            },
+                                            "sentenceSimplified": {
+                                                "type": "string",
+                                                "description": "A simplified version of the sentence using easy-to-understand vocabulary while retaining the original nuances."
+                                            },
+                                            "sentenceSimplifiedGreatly": {
+                                                "type": "string",
+                                                "description": "An even more simplified version of the sentence, focusing on basic vocabulary and structure, but still maintaining the original meaning."
+                                            },
+                                            "sentenceTranslation": {
+                                                "type": "string",
+                                                "description": "A clear translation of the sentence in the usersNativeLanguage."
+                                            },
+                                            "sentenceTranslationLiteral": {
+                                                "type": "string",
+                                                "description": "A word-for-word translation of the sentence into the usersNativeLanguage that closely follows the structure and grammar of the original sentence."
+                                            },
+                                            "sentenceSegmentedBreakdown": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "wordOrPhrase":  {"type": "string",  "description": "The word or phrase from the sentence."},
+                                                        "pronunciation": {"type": "string", "description": "The accurate pronunciation of the word or phrase (e.g., pinyin, IPA)."},
+                                                        "gloss":       {"type": "string", "description": "A short definition or gloss in the languageBeingLearned."},
+                                                        "glossTranslation": {"type": "string", "description": "A short definition or gloss in the usersNativeLanguage."}
+                                                    },
+                                                    "required": [
+                                                        "wordOrPhrase",
+                                                        "pronunciation",
+                                                        "gloss",
+                                                        "glossTranslation"
+                                                    ],
+                                                    "additionalProperties": false
+                                                }
+                                            },
+                                            "sentenceCommentsOrWarnings": {"type": "string", "description": "Any comments or warnings about the sentence."},
+                                            "sentenceRecommendedVersion": {"type": "string", "description": "The recommended version of the sentence, applying any improvements deemed appropriate."}
+                                        },
+                                        "required": [
+                                            "sentenceOriginal",
+                                            "languageBeingLearned",
+                                            "usersNativeLanguage",
+                                            "sentenceSimplified",
+                                            "sentenceSimplifiedGreatly",
+                                            "sentenceTranslation",
+                                            "sentenceTranslationLiteral",
+                                            "sentenceSegmentedBreakdown",
+                                            "sentenceCommentsOrWarnings",
+                                            "sentenceRecommendedVersion"
+                                        ],
+                                        "additionalProperties": false
+                                    }
+                                }
+                            },
+                            max_tokens: maxOutputTokens,
+                            temperature: 0
+                        })
+                    });
+
+                    // Handle non-OK responses
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error.message || 'API request failed.');
+                    }
+
+                    const data = await response.json();
+                    console.log('API response:', data);
+
+                    const choice = data.choices[0];
+                    if (!choice) {
+                        throw new Error('No choices entry in API response: ' + JSON.stringify(data));
+                    }
+                    if (choice.finish_reason !== 'stop') {
+                        throw new Error('Model did not finish processing, finish_reason: ' + choice.finish_reason);
+                    }
+
+                    const content = choice.message.content;
+
+                    let explanationData;
+                    try {
+                        explanationData = JSON.parse(content);
+                    } catch (parseError) {
+                        throw new Error('Failed to parse JSON response: ' + parseError.message);
+                    }
+
+                    console.log('Parsed explanation data:', explanationData);
+                    setExplanation(explanationData);
+
+                } catch (err) {
+                    console.error(err);
+                    setError(err.message || 'An unexpected error occurred.');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div>
+                    <h1>Sentence Explainer</h1>
+                    <p>
+                        This tool allows you to input a sentence in your target language and receive detailed explanations to aid in your language learning.<br />
+                        First, provide your OpenAI API key, either through the text input field or URL hash (it will also be stored in the browser local storage for convenience).<br />
+                        Enter the sentence you want to understand and click "Explain Sentence". The tool will send a prompt to OpenAI's API to generate detailed explanations.<br />
+                        The returned explanations are displayed below.
+                    </p>
+                    <form onSubmit={handleSubmit}>
+                        <label>
+                            OpenAI API Key:
+                            <div style={{ position: 'relative' }}>
+                                <input
+                                    type={showApiKey ? 'text' : 'password'}
+                                    value={apiKey}
+                                    onChange={handleApiKeyChange}
+                                    placeholder="Enter your API key"
+                                    required
+                                />
+                                <button
+                                    type="button"
+                                    onClick={toggleApiKeyVisibility}
+                                    className="toggle-button"
+                                >
+                                    {showApiKey ? 'Hide' : 'Show'}
+                                </button>
+                            </div>
+                        </label>
+                        <br />
+                        <label>
+                            Model:
+                            <select value={model} onChange={handleModelChange}>
+                                <option value="gpt-4o-mini">gpt-4o-mini</option>
+                                <option value="gpt-4o">gpt-4o</option>
+                            </select>
+                        </label>
+                        <br />
+                        <label>
+                            Your Native Language (L1):
+                            <input
+                                type="text"
+                                value={l1Language}
+                                onChange={handleL1LanguageChange}
+                                placeholder="Enter your native language"
+                                required
+                            />
+                        </label>
+                        <br />
+                        <label>
+                            Enter Sentence:
+                            <textarea
+                                value={sentence}
+                                onChange={(e) => setSentence(e.target.value)}
+                                placeholder="Paste your sentence here..."
+                                required
+                            ></textarea>
+                        </label>
+                        <br />
+                        <button type="submit" disabled={loading}>
+                            {loading ? 'Processing...' : 'Explain Sentence'}
+                        </button>
+                    </form>
+                    {error && <div className="error">Error: {error}</div>}
+                    {explanation && (
+                        <div>
+                            <h2>Explanation:</h2>
+                            <div className="explanation">
+                                <h3>Sentence Original (detected as {explanation.languageBeingLearned}):</h3>
+                                <p>{explanation.sentenceOriginal}</p>
+
+                                <h3>Sentence Simplified:</h3>
+                                <p>{explanation.sentenceSimplified}</p>
+
+                                <h3>Sentence Greatly Simplified:</h3>
+                                <p>{explanation.sentenceSimplifiedGreatly}</p>
+
+                                <h3>Sentence Translation (into {explanation.usersNativeLanguage}):</h3>
+                                <p>{explanation.sentenceTranslation}</p>
+
+                                <h3>Sentence Literal Translation:</h3>
+                                <p>{explanation.sentenceTranslationLiteral}</p>
+
+                                <h3>Sentence Segmented Breakdown:</h3>
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Word or Phrase</th>
+                                            <th>Pronunciation</th>
+                                            <th>Gloss</th>
+                                            <th>Explanation</th>
+                                            <th>Gloss ({l1Language})</th>
+                                            <th>Explanation ({l1Language})</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {explanation.sentenceSegmentedBreakdown.map((item, index) => (
+                                            <tr key={index}>
+                                                <td><strong>{item.wordOrPhrase}</strong></td>
+                                                <td>{item.pronunciation}</td>
+                                                <td>{item.gloss}</td>
+                                                <td>{item.explanation}</td>
+                                                <td>{item.glossTranslation}</td>
+                                                <td>{item.explanationTranslation}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+
+                                <h3>Comments or Warnings:</h3>
+                                <p>{explanation.sentenceCommentsOrWarnings}</p>
+
+                                <h3>Recommended Version:</h3>
+                                <p>{explanation.sentenceRecommendedVersion}</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(
+            <StrictMode>
+                <SentenceExplainer />
+            </StrictMode>
+        );
+    </script>
+</body>
+</html>
