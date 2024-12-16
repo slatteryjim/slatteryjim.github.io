@@ -37,6 +37,7 @@
             padding: 15px;
             margin: 10px 0;
             border-radius: 4px;
+            position: relative; /* For positioning the copy button */
         }
         .explanation h3 {
             margin-top: 0;
@@ -65,6 +66,14 @@
         }
         .model-column {
             flex: 1; /* Each column takes equal width */
+        }
+        .copy-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            font-size: 0.8em;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -138,6 +147,16 @@
                 setShowApiKey(!showApiKey);
             };
 
+            // Function to copy text to clipboard
+            const copyToClipboard = (text) => {
+                navigator.clipboard.writeText(text).then(() => {
+                    // Optional: Show a success message or change the button text briefly
+                    console.log('Text copied to clipboard');
+                }).catch(err => {
+                    console.error('Failed to copy text: ', err);
+                });
+            };
+
             // Function to handle form submission or direct call from URL param
             const handleSubmit = async (e, sentenceFromUrl = null) => {
                 if (e) e.preventDefault();
@@ -189,7 +208,7 @@
                 let endTime;
                 let ttfb;
 
-                // Prepare the prompt
+                // Prepare the system prompt
                 const systemPrompt = `I'd like you to be a language sentence explainer.
 
 The user was reading some text, and they came across a sentence that they didn't understand.
@@ -205,7 +224,7 @@ When a user provides a sentence, the GPT will offer the following types of expla
 
 There will be no additional commentary or chitchat.
 
-Here's an example response:
+Here's an example response for an example input sentence "国央企如此热切拥抱大模型，或与一道新政有关。":
 """
 - 国央企 (guó yāng qǐ) [国家和中央的企业] - state-owned enterprises
 - 如此 (rúcǐ) [这么地] - so
@@ -217,12 +236,9 @@ Here's an example response:
 - 一道 (yídào) [一个] - a
 - 新政 (xīnzhèng) [新的政策] - new policy
 - 有关 (yǒuguān) [有关系] - related to
-"""
+"""`;
 
-And now here is the sentence provided by the user:
-`;
                 const userPrompt = currentSentence;
-                const prompt = systemPrompt + userPrompt;
 
                 // Make the API call
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
@@ -232,9 +248,14 @@ And now here is the sentence provided by the user:
                     },
                     body: JSON.stringify({
                         contents: [{
+                                role: "user",
+                                parts: [{ text: userPrompt }]
+                            }
+                        ],
+                        systemInstruction: {
                             role: "user",
-                            parts: [{ text: prompt }]
-                        }]
+                            parts: [{text: systemPrompt}]
+                        },
                     })
                 });
 
@@ -337,6 +358,9 @@ And now here is the sentence provided by the user:
                                 {results[model] && results[model].explanation && (
                                     <div className="explanation">
                                         <pre>{results[model].explanation}</pre>
+                                        <button className="copy-button" onClick={() => copyToClipboard(results[model].explanation)}>
+                                            Copy
+                                        </button>
                                     </div>
                                 )}
                                 {results[model] && (
