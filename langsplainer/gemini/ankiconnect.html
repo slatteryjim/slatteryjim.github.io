@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AnkiConnect + Gemini Sentence Breakdown</title>
+  <title>AnkiConnect + Gemini Sentence Breakdown (Optimized)</title>
   <!-- React and ReactDOM (development versions) -->
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -116,10 +116,9 @@
     }
 
     /************************************************************
-     * Gemini API Helpers (based on original sentence_explainer.html)
+     * Gemini API Helpers
      ************************************************************/
     async function callGemini(apiKey, sentence, model="gemini-2.0-flash-exp") {
-      // The system prompt from the original example:
       const systemPrompt = `I'd like you to be a language sentence explainer.
 
 The user was reading some text, and they came across a sentence that they didn't understand.
@@ -276,7 +275,7 @@ There will be no additional commentary or chitchat.
         setNotesInfo([]);
       };
 
-      // Browse deck
+      // Browse deck (optimized version)
       const handleBrowse = async () => {
         if (!selectedDeck) return;
         setLoading(true);
@@ -284,31 +283,38 @@ There will be no additional commentary or chitchat.
         setNotesInfo([]);
 
         try {
-          // 1) Find note IDs
-          const noteIds = await ankiConnect("findNotes", {
-            query: `deck:"${selectedDeck}"`,
-          });
-          // 2) Get notes info
-          const notesData = await ankiConnect("notesInfo", { notes: noteIds });
+          // 1) Find all note IDs in the deck
+          // 2) Find all card IDs in the deck
+          const [noteIds, cardIds] = await Promise.all([
+            ankiConnect("findNotes", { query: `deck:"${selectedDeck}"` }),
+            ankiConnect("findCards", { query: `deck:"${selectedDeck}"` }),
+          ]);
 
-          // 3) For each note, gather card info to see if suspended
-          //    We'll check if ANY card for that note is suspended => note is considered suspended.
-          const enhancedNotes = [];
-          for (let note of notesData) {
-            const cardIds = await ankiConnect("findCards", {
-              query: `nid:${note.noteId}`,
-            });
-            let anySuspended = false;
-            if (cardIds.length > 0) {
-              const cardsData = await ankiConnect("cardsInfo", { cards: cardIds });
-              anySuspended = cardsData.some((card) => card?.flags?.suspended === true);
+          // 3) Bulk-fetch all note data
+          // 4) Bulk-fetch all card data
+          const [allNotesInfo, allCardsInfo] = await Promise.all([
+            ankiConnect("notesInfo", { notes: noteIds }),
+            ankiConnect("cardsInfo", { cards: cardIds }),
+          ]);
+
+          // Build a map from noteId -> isSuspended
+          // If *any* card of a note is suspended => note is suspended
+          const noteSuspendedMap = {};
+          for (const card of allCardsInfo) {
+            const nid = card.note;
+            if (!noteSuspendedMap[nid]) {
+              noteSuspendedMap[nid] = false;
             }
-
-            enhancedNotes.push({
-              ...note,
-              isSuspended: anySuspended,
-            });
+            if (card.flags?.suspended) {
+              noteSuspendedMap[nid] = true;
+            }
           }
+
+          // Merge the isSuspended status into each note
+          const enhancedNotes = allNotesInfo.map((note) => ({
+            ...note,
+            isSuspended: noteSuspendedMap[note.noteId] || false,
+          }));
 
           setNotesInfo(enhancedNotes);
         } catch (err) {
@@ -383,10 +389,12 @@ There will be no additional commentary or chitchat.
 
       return (
         <div>
-          <h1>AnkiConnect + Gemini Sentence Breakdown</h1>
+          <h1>AnkiConnect + Gemini Sentence Breakdown (Optimized)</h1>
           <p>
-            Select a deck, filter out suspended notes, and browse.  
-            For each note, click “Generate” to call the Gemini model and populate the “Notes” field.
+            Select a deck, optionally filter out suspended notes, then browse.  
+            This version fetches <strong>all notes</strong> and <strong>all cards</strong> in just four calls,
+            rather than calling for each note individually.  
+            For each note, click “Generate” to call Gemini and populate the “Notes” field.
           </p>
 
           {/* Gemini API Key controls */}
