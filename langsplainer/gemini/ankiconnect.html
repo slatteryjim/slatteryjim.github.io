@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AnkiConnect Browser</title>
+  <!-- React and ReactDOM (development versions) -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <!-- Babel for in-browser JSX/ESNext compilation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #fafafa;
+    }
+    select, button, input[type="text"] {
+      padding: 8px;
+      margin: 5px 0;
+    }
+    .deck-list, .notes-container {
+      margin-top: 20px;
+    }
+    .notes-container table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    .notes-container table th, .notes-container table td {
+      border: 1px solid #ddd;
+      padding: 8px;
+    }
+    .notes-container table tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+    .notes-container table tr:hover {
+      background-color: #f1f1f1;
+    }
+    .notes-container table th {
+      background-color: #f0f0f0;
+      font-weight: bold;
+    }
+    .error {
+      color: red;
+    }
+    .loading {
+      color: gray;
+      font-style: italic;
+    }
+    .controls {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" data-type="module" data-presets="env,react">
+    const { useState, useEffect } = React;
+
+    // Helper function to call AnkiConnect
+    async function ankiConnect(action, params = {}) {
+      const requestPayload = {
+        action: action,
+        version: 6,
+        params: params
+      };
+
+      const response = await fetch("http://127.0.0.1:8765", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(requestPayload)
+      });
+
+      if (!response.ok) {
+        throw new Error("Network response was not ok");
+      }
+
+      const data = await response.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      return data.result;
+    }
+
+    function AnkiConnectBrowser() {
+      const [decks, setDecks] = useState([]);
+      const [selectedDeck, setSelectedDeck] = useState("");
+      const [noteIds, setNoteIds] = useState([]);
+      const [notesInfo, setNotesInfo] = useState([]);
+      const [error, setError] = useState(null);
+      const [loading, setLoading] = useState(false);
+
+      // Load deck names on mount
+      useEffect(() => {
+        const loadDecks = async () => {
+          try {
+            setLoading(true);
+            const result = await ankiConnect("deckNames");
+            setDecks(result);
+            setError(null);
+          } catch (err) {
+            setError(err.message);
+          } finally {
+            setLoading(false);
+          }
+        };
+        loadDecks();
+      }, []);
+
+      // Function to handle deck selection
+      const handleDeckChange = (e) => {
+        setSelectedDeck(e.target.value);
+        setNoteIds([]);
+        setNotesInfo([]);
+      };
+
+      // Query for notes in the selected deck
+      const handleBrowse = async () => {
+        if (!selectedDeck) return;
+        setLoading(true);
+        setError(null);
+        setNoteIds([]);
+        setNotesInfo([]);
+
+        try {
+          // 1) Find note IDs in the deck
+          const ids = await ankiConnect("findNotes", { query: `deck:"${selectedDeck}"` });
+          setNoteIds(ids);
+
+          // 2) Get info on those notes
+          const notesData = await ankiConnect("notesInfo", { notes: ids });
+          setNotesInfo(notesData);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      // Later, you could integrate a function that calls Gemini for each sentence
+      // and updates the note's fields with the sentence breakdown using something like:
+      // ankiConnect("updateNoteFields", { note: { id: noteId, fields: { ... } } })
+
+      return (
+        <div>
+          <h1>AnkiConnect Deck Browser</h1>
+          <p>
+            Below is a simple UI for browsing your Anki decks using the AnkiConnect API.
+            Select a deck, then click "Browse Deck" to view your notes.  
+            Eventually, you can add functionality to batch-update these notes 
+            (e.g., with a Gemini-based sentence breakdown).
+          </p>
+
+          {loading && <div className="loading">Loading...</div>}
+          {error && <div className="error">Error: {error}</div>}
+
+          <div className="deck-list">
+            <h2>Deck List</h2>
+            <select onChange={handleDeckChange} value={selectedDeck}>
+              <option value="">-- Select a deck --</option>
+              {decks.map((deckName) => (
+                <option key={deckName} value={deckName}>
+                  {deckName}
+                </option>
+              ))}
+            </select>
+            <button onClick={handleBrowse} disabled={!selectedDeck || loading}>
+              Browse Deck
+            </button>
+          </div>
+
+          <div className="notes-container">
+            <h2>Notes in Deck: {selectedDeck || "(none selected)"} </h2>
+            {noteIds.length > 0 ? (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Note ID</th>
+                    <th>Front</th>
+                    <th>Back</th>
+                    {/* Add more fields/columns as desired */}
+                  </tr>
+                </thead>
+                <tbody>
+                  {notesInfo.map((note) => (
+                    <tr key={note.noteId}>
+                      <td>{note.noteId}</td>
+                      <td>{note.fields?.Front?.value}</td>
+                      <td>{note.fields?.Back?.value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p>No notes found or no deck selected.</p>
+            )}
+          </div>
+
+          <div className="controls">
+            {/* 
+              Later you might add a button here, like:
+              <button onClick={handleBulkUpdate}>
+                Bulk Update via Gemini
+              </button> 
+              which calls the Gemini LLM for each note, 
+              and then calls ankiConnect("updateNoteFields", ...) 
+              to populate the "Notes" field.
+            */}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<AnkiConnectBrowser />);
+  </script>
+</body>
+</html>
