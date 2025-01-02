@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AnkiConnect Browser</title>
+  <title>AnkiConnect + Gemini Sentence Breakdown</title>
   <!-- React and ReactDOM (development versions) -->
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -14,7 +14,7 @@
       margin: 20px;
       background-color: #fafafa;
     }
-    select, button, input[type="text"] {
+    select, button, input[type="text"], input[type="password"] {
       padding: 8px;
       margin: 5px 0;
     }
@@ -24,6 +24,7 @@
     .notes-container table {
       border-collapse: collapse;
       width: 100%;
+      margin-top: 10px;
     }
     .notes-container table th, .notes-container table td {
       border: 1px solid #ddd;
@@ -52,6 +53,30 @@
     label.filter-label {
       margin-right: 10px;
     }
+    .api-key-container {
+      position: relative;
+      margin-bottom: 10px;
+    }
+    .toggle-button {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      margin: 5px;
+      padding: 5px 10px;
+    }
+    .generate-button {
+      margin: 5px 0;
+    }
+    .notes-field-updated {
+      background-color: #e0ffe0;
+      transition: background-color 1s;
+    }
+    .stats {
+      font-size: 0.8em;
+      color: #666;
+      margin-top: 5px;
+    }
   </style>
 </head>
 <body>
@@ -60,20 +85,22 @@
   <script type="text/babel" data-type="module" data-presets="env,react">
     const { useState, useEffect } = React;
 
-    // Helper function to call AnkiConnect
+    /************************************************************
+     * AnkiConnect Helpers
+     ************************************************************/
     async function ankiConnect(action, params = {}) {
       const requestPayload = {
         action: action,
         version: 6,
-        params: params
+        params: params,
       };
 
       const response = await fetch("http://127.0.0.1:8765", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(requestPayload)
+        body: JSON.stringify(requestPayload),
       });
 
       if (!response.ok) {
@@ -88,19 +115,137 @@
       return data.result;
     }
 
-    function AnkiConnectBrowser() {
+    /************************************************************
+     * Gemini API Helpers (based on original sentence_explainer.html)
+     ************************************************************/
+    async function callGemini(apiKey, sentence, model="gemini-2.0-flash-exp") {
+      // The system prompt from the original example:
+      const systemPrompt = `I'd like you to be a language sentence explainer.
+
+The user was reading some text, and they came across a sentence that they didn't understand.
+Maybe they didn't understand one word or phrase, or maybe they knew each word, but didn't understand what the sentence as a whole meant.
+
+They will provide a snippet for context, and then the particular sentence to focus on.
+
+Pretend you are a language mentor and fluent speaker of their target language, and you should only reply in that language.
+You are very encouraging of them to succeed in their studies.
+When a user provides a sentence, the GPT will offer the following types of explanations, always responding in the target language of the sentence:
+
+- **Segmented Sentence Breakdown**: A breakdown of the sentence where each word or important phrase is separated by a newline. After each word/phrase, include in parentheses the accurate pronunciation (e.g., pinyin) and an explanatory alternative in the target language. If the target language gloss is particularly difficult, an English gloss may be provided as well.
+
+There will be no additional commentary or chitchat.
+`;
+
+      const userPrompt = sentence;
+
+      const startTime = performance.now();
+      let ttfb;
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [{ text: userPrompt }],
+              },
+            ],
+            systemInstruction: {
+              role: "user",
+              parts: [{ text: systemPrompt }],
+            },
+          }),
+        }
+      );
+
+      // Track TTFB
+      const reader = response.body.getReader();
+      const firstChunk = await reader.read();
+      ttfb = performance.now() - startTime;
+      const decoder = new TextDecoder();
+      let responseText = decoder.decode(firstChunk.value || new Uint8Array(), {
+        stream: true,
+      });
+
+      while (!firstChunk.done) {
+        const nextChunk = await reader.read();
+        if (nextChunk.done) break;
+        responseText += decoder.decode(nextChunk.value, { stream: true });
+      }
+
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = JSON.parse(responseText);
+        } catch (parseErr) {
+          throw new Error("API request failed, and response couldn't be parsed as JSON.");
+        }
+        throw new Error(errorData.error?.message || "API request failed.");
+      }
+
+      const data = JSON.parse(responseText);
+      const endTime = performance.now();
+
+      let explanation = "No explanation generated.";
+      if (
+        data.candidates &&
+        data.candidates.length > 0 &&
+        data.candidates[0].content &&
+        data.candidates[0].content.parts &&
+        data.candidates[0].content.parts.length > 0
+      ) {
+        explanation = data.candidates[0].content.parts[0].text;
+      }
+
+      const promptTokenCount = data.usageMetadata?.promptTokenCount || 0;
+      const candidatesTokenCount = data.usageMetadata?.candidatesTokenCount || 0;
+      const totalTokenCount = data.usageMetadata?.totalTokenCount || 0;
+      const totalDuration = endTime - startTime;
+      const tokensPerSecond = totalDuration > 0 ? (totalTokenCount / (totalDuration / 1000)) : 0;
+
+      const stats = {
+        ttfb: ttfb.toFixed(2),
+        totalDuration: totalDuration.toFixed(2),
+        promptTokenCount,
+        candidatesTokenCount,
+        totalTokenCount,
+        tokensPerSecond: tokensPerSecond.toFixed(2),
+      };
+
+      console.log("Gemini stats:", stats);
+
+      return {
+        explanation,
+        stats,
+      };
+    }
+
+    function AnkiConnectGeminiBrowser() {
+      // Anki
       const [decks, setDecks] = useState([]);
       const [selectedDeck, setSelectedDeck] = useState("");
-      const [noteIds, setNoteIds] = useState([]);
       const [notesInfo, setNotesInfo] = useState([]);
       const [error, setError] = useState(null);
       const [loading, setLoading] = useState(false);
+      const [filterSuspended, setFilterSuspended] = useState(false); // filter out suspended
 
-      // Filter: show only notes that have an empty "Notes" field
-      const [filterEmptyNotes, setFilterEmptyNotes] = useState(false);
+      // Gemini
+      const [apiKey, setApiKey] = useState("");
+      const [showApiKey, setShowApiKey] = useState(false);
 
-      // Load deck names on mount
       useEffect(() => {
+        // Load any saved API key from localStorage
+        const savedKey = localStorage.getItem("gemini_api_key");
+        if (savedKey) {
+          setApiKey(savedKey);
+        }
+
+        // Load deck names on mount
         const loadDecks = async () => {
           try {
             setLoading(true);
@@ -116,33 +261,56 @@
         loadDecks();
       }, []);
 
-      // Function to handle deck selection
+      // Handle API key input
+      const handleApiKeyChange = (e) => {
+        setApiKey(e.target.value);
+        localStorage.setItem("gemini_api_key", e.target.value);
+      };
+      const toggleApiKeyVisibility = () => {
+        setShowApiKey(!showApiKey);
+      };
+
+      // Select a deck
       const handleDeckChange = (e) => {
         setSelectedDeck(e.target.value);
-        setNoteIds([]);
         setNotesInfo([]);
       };
 
-      // Query for notes in the selected deck
+      // Browse deck
       const handleBrowse = async () => {
         if (!selectedDeck) return;
         setLoading(true);
         setError(null);
-        setNoteIds([]);
         setNotesInfo([]);
 
         try {
-          // 1) Find note IDs in the deck
-          // If you want to filter out cards that already have "Notes" filled,
-          // you can incorporate a search query like:
-          // query: `deck:"MyDeckName" "Notes:"`
-          // But for demonstration, we simply fetch everything and then filter client-side
-          const ids = await ankiConnect("findNotes", { query: `deck:"${selectedDeck}"` });
-          setNoteIds(ids);
+          // 1) Find note IDs
+          const noteIds = await ankiConnect("findNotes", {
+            query: `deck:"${selectedDeck}"`,
+          });
+          // 2) Get notes info
+          const notesData = await ankiConnect("notesInfo", { notes: noteIds });
 
-          // 2) Get info on those notes
-          const notesData = await ankiConnect("notesInfo", { notes: ids });
-          setNotesInfo(notesData);
+          // 3) For each note, gather card info to see if suspended
+          //    We'll check if ANY card for that note is suspended => note is considered suspended.
+          const enhancedNotes = [];
+          for (let note of notesData) {
+            const cardIds = await ankiConnect("findCards", {
+              query: `nid:${note.noteId}`,
+            });
+            let anySuspended = false;
+            if (cardIds.length > 0) {
+              const cardsData = await ankiConnect("cardsInfo", { cards: cardIds });
+              anySuspended = cardsData.some((card) => card?.flags?.suspended === true);
+            }
+
+            enhancedNotes.push({
+              ...note,
+              isSuspended: anySuspended,
+            });
+          }
+
+          setNotesInfo(enhancedNotes);
         } catch (err) {
           setError(err.message);
         } finally {
@@ -150,30 +318,101 @@
         }
       };
 
-      // Derive the filtered list of notes
+      // Filtered notes
       const filteredNotes = notesInfo.filter((note) => {
-        // If we want to show only empty "Notes" field, check it:
-        if (filterEmptyNotes) {
-          const notesFieldValue = note.fields?.Notes?.value?.trim() || "";
-          return notesFieldValue === "";
+        if (filterSuspended && note.isSuspended) {
+          // If filterSuspended is true, we EXCLUDE suspended notes.
+          return false;
         }
-        // Otherwise, show all
         return true;
       });
 
+      // Handle generating sentence breakdown with Gemini, then update the note
+      const handleGenerateBreakdown = async (noteId, sentence) => {
+        if (!apiKey) {
+          alert("Please provide your Gemini API key first.");
+          return;
+        }
+        if (!sentence) {
+          alert("There's no Sentence field text to process.");
+          return;
+        }
+        setLoading(true);
+
+        try {
+          const { explanation } = await callGemini(apiKey, sentence, "gemini-2.0-flash-exp");
+
+          // Update the note's "Notes" field in Anki
+          await ankiConnect("updateNoteFields", {
+            note: {
+              id: noteId,
+              fields: {
+                Notes: explanation,
+              },
+            },
+          });
+
+          // Update local state so the UI shows the new "Notes" content
+          setNotesInfo((prev) =>
+            prev.map((n) => {
+              if (n.noteId === noteId) {
+                return {
+                  ...n,
+                  fields: {
+                    ...n.fields,
+                    Notes: {
+                      ...n.fields.Notes,
+                      value: explanation,
+                    },
+                  },
+                };
+              }
+              return n;
+            })
+          );
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      // Count
+      const totalCount = notesInfo.length;
+      const filteredCount = filteredNotes.length;
+
       return (
         <div>
-          <h1>AnkiConnect Deck Browser</h1>
+          <h1>AnkiConnect + Gemini Sentence Breakdown</h1>
           <p>
-            This UI browses your Anki decks (via AnkiConnect), showing the <strong>Sentence</strong> 
-            and <strong>Notes</strong> fields.  
-            Use the “Show Only Empty Notes Field” checkbox if you want to filter out cards that 
-            already have something in the “Notes” field.
+            Select a deck, filter out suspended notes, and browse.  
+            For each note, click “Generate” to call the Gemini model and populate the “Notes” field.
           </p>
 
-          {loading && <div className="loading">Loading...</div>}
+          {/* Gemini API Key controls */}
+          <div>
+            <label>Gemini API Key:</label>
+            <div className="api-key-container">
+              <input
+                type={showApiKey ? "text" : "password"}
+                value={apiKey}
+                onChange={handleApiKeyChange}
+                placeholder="Enter your Gemini API key"
+              />
+              <button
+                type="button"
+                onClick={toggleApiKeyVisibility}
+                className="toggle-button"
+              >
+                {showApiKey ? "Hide" : "Show"}
+              </button>
+            </div>
+          </div>
+
+          {loading && <div className="loading">Processing...</div>}
           {error && <div className="error">Error: {error}</div>}
 
+          {/* Decks */}
           <div className="deck-list">
             <h2>Deck List</h2>
             <select onChange={handleDeckChange} value={selectedDeck}>
@@ -189,37 +428,60 @@
             </button>
           </div>
 
+          {/* Filters */}
           <div className="filters">
             <label className="filter-label">
               <input
                 type="checkbox"
-                checked={filterEmptyNotes}
-                onChange={() => setFilterEmptyNotes(!filterEmptyNotes)}
+                checked={filterSuspended}
+                onChange={() => setFilterSuspended(!filterSuspended)}
               />
-              Show Only Empty "Notes" Field
+              Hide Suspended Notes
             </label>
           </div>
 
+          {/* Notes */}
           <div className="notes-container">
-            <h2>Notes in Deck: {selectedDeck || "(none selected)"} </h2>
+            <h2>Notes in Deck: {selectedDeck || "(none)"} </h2>
+            <p>
+              Showing {filteredCount} of {totalCount} notes.
+            </p>
             {filteredNotes.length > 0 ? (
               <table>
                 <thead>
                   <tr>
                     <th>Note ID</th>
+                    <th>Suspended?</th>
                     <th>Sentence</th>
                     <th>Notes</th>
+                    <th>Generate Breakdown</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredNotes.map((note) => {
-                    const sentenceField = note.fields?.Sentence?.value || "";
-                    const notesField = note.fields?.Notes?.value || "";
+                    const { noteId, isSuspended, fields } = note;
+                    const sentenceField = fields?.Sentence?.value || "";
+                    const notesField = fields?.Notes?.value || "";
                     return (
-                      <tr key={note.noteId}>
-                        <td>{note.noteId}</td>
+                      <tr key={noteId}>
+                        <td>{noteId}</td>
+                        <td>{isSuspended ? "Yes" : "No"}</td>
                         <td>{sentenceField}</td>
-                        <td>{notesField}</td>
+                        <td
+                          className={`${
+                            notesField ? "notes-field-updated" : ""
+                          }`}
+                        >
+                          {notesField}
+                        </td>
+                        <td>
+                          <button
+                            className="generate-button"
+                            onClick={() => handleGenerateBreakdown(noteId, sentenceField)}
+                          >
+                            Generate
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -229,23 +491,13 @@
               <p>No notes found or none match the filter.</p>
             )}
           </div>
-
-          <div className="controls">
-            {/* 
-              Later you might add a button here, like:
-              <button onClick={handleBulkUpdate}>
-                Bulk Update via Gemini
-              </button> 
-              which calls the Gemini LLM for each note's "Sentence" field, 
-              and then calls ankiConnect("updateNoteFields", ...) 
-              to populate the "Notes" field.
-            */}
-          </div>
         </div>
       );
     }
 
-    ReactDOM.createRoot(document.getElementById("root")).render(<AnkiConnectBrowser />);
+    ReactDOM.createRoot(document.getElementById("root")).render(
+      <AnkiConnectGeminiBrowser />
+    );
   </script>
 </body>
 </html>
