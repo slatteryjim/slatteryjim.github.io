@@ -288,7 +288,7 @@ Here's an example response for an example input sentence "国央企如此热切�
         setNotesInfo([]);
       };
 
-      // Browse deck (optimized version)
+      // Browse deck
       const handleBrowse = async () => {
         if (!selectedDeck) return;
         setLoading(true);
@@ -297,31 +297,34 @@ Here's an example response for an example input sentence "国央企如此热切�
 
         try {
           // 1) Find all note IDs in the deck
-          // 2) Find all card IDs in the deck
-          const [noteIds, cardIds] = await Promise.all([
-            ankiConnect("findNotes", { query: `deck:"${selectedDeck}"` }),
-            ankiConnect("findCards", { query: `deck:"${selectedDeck}"` }),
-          ]);
+          const noteIds = await ankiConnect("findNotes", {
+            query: `deck:"${selectedDeck}"`,
+          });
 
-          // 3) Bulk-fetch all note data
-          // 4) Bulk-fetch all card data
-          const [allNotesInfo, allCardsInfo] = await Promise.all([
-            ankiConnect("notesInfo", { notes: noteIds }),
-            ankiConnect("cardsInfo", { cards: cardIds }),
-          ]);
+          // 2) Bulk-fetch all note data
+          const allNotesInfo = await ankiConnect("notesInfo", { notes: noteIds });
 
-          // Build a map from noteId -> isSuspended
-          // If *any* card of a note is suspended => note is suspended
+          // 3) Find all card IDs associated with the notes
+          const cardIds = allNotesInfo.flatMap((note) => note.cards);
+
+          // 4) Bulk-fetch suspended status for all cards
+          const cardSuspendedStatuses = await ankiConnect("areSuspended", {
+            cards: cardIds,
+          });
+
+          // Create a map of cardId -> isSuspended
+          const cardSuspendedMap = {};
+          cardIds.forEach((cardId, index) => {
+            cardSuspendedMap[cardId] = cardSuspendedStatuses[index] === true;
+          });
+
+          // Create a map of noteId -> isSuspended (any card suspended means note is suspended)
           const noteSuspendedMap = {};
-          for (const card of allCardsInfo) {
-            const nid = card.note;
-            if (!noteSuspendedMap[nid]) {
-              noteSuspendedMap[nid] = false;
-            }
-            if (card.flags?.suspended) {
-              noteSuspendedMap[nid] = true;
-            }
-          }
+          allNotesInfo.forEach((note) => {
+            noteSuspendedMap[note.noteId] = note.cards.some(
+              (cardId) => cardSuspendedMap[cardId]
+            );
+          });
 
           // Merge the isSuspended status into each note
           const enhancedNotes = allNotesInfo.map((note) => ({
