@@ -46,8 +46,11 @@
       color: gray;
       font-style: italic;
     }
-    .controls {
+    .controls, .filters {
       margin-top: 20px;
+    }
+    label.filter-label {
+      margin-right: 10px;
     }
   </style>
 </head>
@@ -93,6 +96,9 @@
       const [error, setError] = useState(null);
       const [loading, setLoading] = useState(false);
 
+      // Filter: show only notes that have an empty "Notes" field
+      const [filterEmptyNotes, setFilterEmptyNotes] = useState(false);
+
       // Load deck names on mount
       useEffect(() => {
         const loadDecks = async () => {
@@ -127,6 +133,10 @@
 
         try {
           // 1) Find note IDs in the deck
+          // If you want to filter out cards that already have "Notes" filled,
+          // you can incorporate a search query like:
+          // query: `deck:"MyDeckName" "Notes:"`
+          // But for demonstration, we simply fetch everything and then filter client-side
           const ids = await ankiConnect("findNotes", { query: `deck:"${selectedDeck}"` });
           setNoteIds(ids);
 
@@ -140,18 +150,25 @@
         }
       };
 
-      // Later, you could integrate a function that calls Gemini for each sentence
-      // and updates the note's fields with the sentence breakdown using something like:
-      // ankiConnect("updateNoteFields", { note: { id: noteId, fields: { ... } } })
+      // Derive the filtered list of notes
+      const filteredNotes = notesInfo.filter((note) => {
+        // If we want to show only empty "Notes" field, check it:
+        if (filterEmptyNotes) {
+          const notesFieldValue = note.fields?.Notes?.value?.trim() || "";
+          return notesFieldValue === "";
+        }
+        // Otherwise, show all
+        return true;
+      });
 
       return (
         <div>
           <h1>AnkiConnect Deck Browser</h1>
           <p>
-            Below is a simple UI for browsing your Anki decks using the AnkiConnect API.
-            Select a deck, then click "Browse Deck" to view your notes.  
-            Eventually, you can add functionality to batch-update these notes 
-            (e.g., with a Gemini-based sentence breakdown).
+            This UI browses your Anki decks (via AnkiConnect), showing the <strong>Sentence</strong> 
+            and <strong>Notes</strong> fields.  
+            Use the “Show Only Empty Notes Field” checkbox if you want to filter out cards that 
+            already have something in the “Notes” field.
           </p>
 
           {loading && <div className="loading">Loading...</div>}
@@ -172,30 +189,44 @@
             </button>
           </div>
 
+          <div className="filters">
+            <label className="filter-label">
+              <input
+                type="checkbox"
+                checked={filterEmptyNotes}
+                onChange={() => setFilterEmptyNotes(!filterEmptyNotes)}
+              />
+              Show Only Empty "Notes" Field
+            </label>
+          </div>
+
           <div className="notes-container">
             <h2>Notes in Deck: {selectedDeck || "(none selected)"} </h2>
-            {noteIds.length > 0 ? (
+            {filteredNotes.length > 0 ? (
               <table>
                 <thead>
                   <tr>
                     <th>Note ID</th>
-                    <th>Front</th>
-                    <th>Back</th>
-                    {/* Add more fields/columns as desired */}
+                    <th>Sentence</th>
+                    <th>Notes</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {notesInfo.map((note) => (
-                    <tr key={note.noteId}>
-                      <td>{note.noteId}</td>
-                      <td>{note.fields?.Front?.value}</td>
-                      <td>{note.fields?.Back?.value}</td>
-                    </tr>
-                  ))}
+                  {filteredNotes.map((note) => {
+                    const sentenceField = note.fields?.Sentence?.value || "";
+                    const notesField = note.fields?.Notes?.value || "";
+                    return (
+                      <tr key={note.noteId}>
+                        <td>{note.noteId}</td>
+                        <td>{sentenceField}</td>
+                        <td>{notesField}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             ) : (
-              <p>No notes found or no deck selected.</p>
+              <p>No notes found or none match the filter.</p>
             )}
           </div>
 
@@ -205,7 +236,7 @@
               <button onClick={handleBulkUpdate}>
                 Bulk Update via Gemini
               </button> 
-              which calls the Gemini LLM for each note, 
+              which calls the Gemini LLM for each note's "Sentence" field, 
               and then calls ankiConnect("updateNoteFields", ...) 
               to populate the "Notes" field.
             */}
