@@ -179,7 +179,7 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
 - 一道 (yídào) - 一个 [a]
 - 新政 (xīnzhèng) - 新的政策 [new policy]
 - 有关 (yǒuguān) - 有关系 [related to]
-"""`; 
+"""`;
 
       const userPrompt = sentence;
       const startTime = performance.now();
@@ -454,6 +454,24 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
         return true;
       });
 
+      // A single shared helper to update a note with explanation
+      async function updateNoteWithExplanation(noteId, explanation) {
+        // Anki will render the field as HTML, so convert line breaks to <br>
+        const explanationWithLineBreaks = explanation.replace(/\n/g, "<br>");
+
+        // Update in Anki
+        await ankiConnect("updateNoteFields", {
+          note: {
+            id: noteId,
+            fields: {
+              Notes: explanationWithLineBreaks,
+            },
+          },
+        });
+
+        return explanationWithLineBreaks; // in case we need it
+      }
+
       // Individual generation (still updates local state as before)
       const handleGenerateBreakdown = async (noteId, sentence) => {
         if (!apiKey) {
@@ -468,21 +486,8 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
 
         try {
           const { explanation } = await callGemini(apiKey, sentence, "gemini-2.0-flash-exp");
-
-          // Add <br> tags for line breaks in Anki
-          const explanationWithLineBreaks = explanation.replace(/\n/g, "<br>");
-
-          // Update the note's "Notes" field in Anki
-          await ankiConnect("updateNoteFields", {
-            note: {
-              id: noteId,
-              fields: {
-                Notes: explanationWithLineBreaks,
-              },
-            },
-          });
-
-          // Update local state so the UI shows the new "Notes" content
+          await updateNoteWithExplanation(noteId, explanation);
+          // Update React state with the raw explanation
           setNotesInfo((prev) =>
             prev.map((n) => {
               if (n.noteId === noteId) {
@@ -545,22 +550,14 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
 
           try {
             const { explanation, stats } = await callGemini(apiKey, sentence, "gemini-2.0-flash-exp");
-            // stats includes promptTokenCount, candidatesTokenCount, totalTokenCount
             setAccPromptTokens((prev) => prev + stats.promptTokenCount);
             setAccCandidateTokens((prev) => prev + stats.candidatesTokenCount);
             setAccTotalTokens((prev) => prev + stats.totalTokenCount);
 
-            // Update the note in Anki
-            await ankiConnect("updateNoteFields", {
-              note: {
-                id: noteId,
-                fields: {
-                  Notes: explanation,
-                },
-              },
-            });
+            // Update the note in Anki (no re-render yet)
+            await updateNoteWithExplanation(noteId, explanation);
 
-            // Update our local array (NOT in state yet)
+            // Update our local array with the raw explanation
             const idx = updatedNotesArray.findIndex((n) => n.noteId === noteId);
             if (idx >= 0) {
               updatedNotesArray[idx] = {
