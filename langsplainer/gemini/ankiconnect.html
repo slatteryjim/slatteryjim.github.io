@@ -82,7 +82,7 @@
       border: 1px solid #ccc;
       background-color: #f7f7f7;
       padding: 10px;
-      width: 300px;
+      width: 400px; /* slightly wider to fit tokens info */
       position: relative;
     }
     .progress-bar {
@@ -94,6 +94,7 @@
     .progress-text {
       margin-top: 10px;
       font-size: 0.9em;
+      line-height: 1.4em;
     }
   </style>
 </head>
@@ -257,6 +258,15 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
       };
     }
 
+    // helper to format seconds into H:MM:SS
+    function formatTime(seconds) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = Math.floor(seconds % 60);
+      // e.g. "1:05:07" or "0:00:14"
+      return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    }
+
     function AnkiConnectGeminiBrowser() {
       // Anki
       const [decks, setDecks] = useState([]);
@@ -278,6 +288,13 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
       const [bulkProcessedCount, setBulkProcessedCount] = useState(0);
       const [bulkTotalCount, setBulkTotalCount] = useState(0);
       const [bulkStartTime, setBulkStartTime] = useState(0);
+
+      // accumulators for stable time est + tokens
+      const [accPromptTokens, setAccPromptTokens] = useState(0);
+      const [accCandidateTokens, setAccCandidateTokens] = useState(0);
+      const [accTotalTokens, setAccTotalTokens] = useState(0);
+
+      // We’ll compute our own time left from average times
       const [timeEstimate, setTimeEstimate] = useState(0);
 
       useEffect(() => {
@@ -386,7 +403,7 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
         return true;
       });
 
-      // Handle generating sentence breakdown with Gemini, then update the note
+      // Individual generation (still updates local state as before)
       const handleGenerateBreakdown = async (noteId, sentence) => {
         if (!apiKey) {
           alert("Please provide your Gemini API key first.");
@@ -446,9 +463,6 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
           return;
         }
 
-        // We only want to process notes that have a Sentence field (non-empty)
-        // and presumably an empty "Notes" field if we rely on the filter. 
-        // But let's just handle them in the final filtered set:
         const notesToProcess = filteredNotes.filter((note) => {
           const sentenceField = note.fields?.Sentence?.value?.trim() || "";
           return !!sentenceField; // only want notes that have something in Sentence
@@ -463,18 +477,27 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
         setBulkStartTime(Date.now());
         setBulkProcessedCount(0);
         setBulkTotalCount(notesToProcess.length);
+        // Reset accumulators
+        setAccPromptTokens(0);
+        setAccCandidateTokens(0);
+        setAccTotalTokens(0);
         setTimeEstimate(0);
 
-        // Process each note sequentially
+        // We'll hold the updated notes in a local array (avoid re-render each time)
+        const updatedNotesArray = [...notesInfo];
+
         for (let i = 0; i < notesToProcess.length; i++) {
           const note = notesToProcess[i];
           const noteId = note.noteId;
           const sentence = note.fields?.Sentence?.value || "";
-
           const startTime = performance.now();
 
           try {
-            const { explanation } = await callGemini(apiKey, sentence, "gemini-2.0-flash-exp");
+            const { explanation, stats } = await callGemini(apiKey, sentence, "gemini-2.0-flash-exp");
+            // stats includes promptTokenCount, candidatesTokenCount, totalTokenCount
+            setAccPromptTokens((prev) => prev + stats.promptTokenCount);
+            setAccCandidateTokens((prev) => prev + stats.candidatesTokenCount);
+            setAccTotalTokens((prev) => prev + stats.totalTokenCount);
 
             // Update the note in Anki
             await ankiConnect("updateNoteFields", {
@@ -486,41 +509,41 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
               },
             });
 
-            // Update local state
-            setNotesInfo((prev) =>
-              prev.map((n) => {
-                if (n.noteId === noteId) {
-                  return {
-                    ...n,
-                    fields: {
-                      ...n.fields,
-                      Notes: {
-                        ...n.fields.Notes,
-                        value: explanation,
-                      },
-                    },
-                  };
-                }
-                return n;
-              })
-            );
+            // Update our local array (NOT in state yet)
+            const idx = updatedNotesArray.findIndex((n) => n.noteId === noteId);
+            if (idx >= 0) {
+              updatedNotesArray[idx] = {
+                ...updatedNotesArray[idx],
+                fields: {
+                  ...updatedNotesArray[idx].fields,
+                  Notes: {
+                    ...updatedNotesArray[idx].fields.Notes,
+                    value: explanation,
+                  },
+                },
+              };
+            }
           } catch (err) {
             // Log and continue
             console.error("Error while generating or updating note", noteId, err);
             setError(err.message);
           }
 
-          // Update processed count
+          // Update processed count in state so the progress bar moves
           setBulkProcessedCount((prev) => prev + 1);
 
-          // Estimate time
+          // stable time estimate with average
           const endTime = performance.now();
-          const singleIterationTime = (endTime - startTime) / 1000; // in seconds
+          const timeSoFar = (endTime - bulkStartTime) / 1000;
+          // average time per note
+          const avgTimePerNote = timeSoFar / (i + 1);
           const notesLeft = notesToProcess.length - (i + 1);
-          // Rough estimate: assume next calls each take about as long as the last call
-          const timeLeft = singleIterationTime * notesLeft;
+          const timeLeft = avgTimePerNote * notesLeft;
           setTimeEstimate(timeLeft);
         }
+
+        // Finally do one big update of the entire notes array
+        setNotesInfo(updatedNotesArray);
 
         setIsBulkGenerating(false);
       };
@@ -533,7 +556,28 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
       const progressPercent = bulkTotalCount
         ? Math.floor((bulkProcessedCount / bulkTotalCount) * 100)
         : 0;
+
+      // Elapsed time in HH:MM:SS
       const elapsedSeconds = isBulkGenerating ? (Date.now() - bulkStartTime) / 1000 : 0;
+      const elapsedFormatted = formatTime(elapsedSeconds);
+      const remainingFormatted = formatTime(timeEstimate);
+
+      // average total tokens per note so far
+      const processedSoFar = Math.max(bulkProcessedCount, 1);
+      const avgPromptTokens = accPromptTokens / processedSoFar;
+      const avgCandidateTokens = accCandidateTokens / processedSoFar;
+      const avgTotalTokens = accTotalTokens / processedSoFar;
+
+      // If we assume the same average for the remaining notes:
+      const remainingNotes = bulkTotalCount - bulkProcessedCount;
+      const estRemainingPrompt = avgPromptTokens * remainingNotes;
+      const estRemainingCandidate = avgCandidateTokens * remainingNotes;
+      const estRemainingTotal = avgTotalTokens * remainingNotes;
+
+      // Summation of what's used so far plus what's left
+      const estGrandTotalPrompt = accPromptTokens + estRemainingPrompt;
+      const estGrandTotalCandidate = accCandidateTokens + estRemainingCandidate;
+      const estGrandTotalTotal = accTotalTokens + estRemainingTotal;
 
       return (
         <div>
@@ -621,8 +665,23 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
                     <div>
                       Processed {bulkProcessedCount}/{bulkTotalCount} notes ({progressPercent}%)
                     </div>
-                    <div>Elapsed: {elapsedSeconds.toFixed(2)}s</div>
-                    <div>Est. Remaining: {timeEstimate.toFixed(2)}s</div>
+                    <div>Elapsed: {elapsedFormatted}</div>
+                    <div>Est. Remaining: {remainingFormatted}</div>
+
+                    {/* Token usage so far + estimated totals */}
+                    <div style={{ marginTop: '8px', fontWeight: 'bold' }}>Token Usage</div>
+                    <div>
+                      <strong>Prompt Tokens So Far:</strong> {accPromptTokens.toFixed(0)}, 
+                      &nbsp; Estimated Total: {estGrandTotalPrompt.toFixed(0)}
+                    </div>
+                    <div>
+                      <strong>Candidate Tokens So Far:</strong> {accCandidateTokens.toFixed(0)}, 
+                      &nbsp; Estimated Total: {estGrandTotalCandidate.toFixed(0)}
+                    </div>
+                    <div>
+                      <strong>Total Tokens So Far:</strong> {accTotalTokens.toFixed(0)}, 
+                      &nbsp; Estimated Total: {estGrandTotalTotal.toFixed(0)}
+                    </div>
                   </div>
                 </div>
               )}
