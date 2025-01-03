@@ -138,6 +138,18 @@
      * Gemini API Helpers
      ************************************************************/
     async function callGemini(apiKey, sentence, model="gemini-2.0-flash-exp") {
+      // Parameters for exponential backoff:
+      const maxAttempts = 1000;        // Total times we’ll retry before giving up
+      const initialDelay = 5000;       // Start with 5 seconds
+      const maxDelay = 5 * 60 * 1000;  // Cap at 5 minutes
+
+      let attempt = 0;
+      let delay = initialDelay;
+
+      while (true) {
+        attempt++;
+
+        // Define your system + user prompts here
       const systemPrompt = `I'd like you to be a language sentence explainer.
 
 The user was reading some text, and they came across a sentence that they didn't understand.
@@ -170,11 +182,13 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
 """`; 
 
       const userPrompt = sentence;
-
       const startTime = performance.now();
       let ttfb;
 
-      const response = await fetch(
+        let response;
+        try {
+          // Attempt the request
+          response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
         {
           method: "POST",
@@ -211,7 +225,23 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
         responseText += decoder.decode(nextChunk.value, { stream: true });
       }
 
+          // Check HTTP status
       if (!response.ok) {
+            // If rate-limited, back off and retry
+            if (response.status === 429) {
+              console.warn(
+                `Gemini rate-limited (429). Attempt #${attempt} of ${maxAttempts}. Will retry after ${(delay / 1000).toFixed(1)}s.`
+              );
+              if (attempt >= maxAttempts) {
+                throw new Error(
+                  `Rate limit error (429) and max attempts (${maxAttempts}) reached. Aborting.`
+                );
+              }
+              // Wait, then increase backoff delay (exponential)
+              await new Promise((resolve) => setTimeout(resolve, delay));
+              delay = Math.min(delay * 2, maxDelay);
+              continue; // go back to the while-loop
+            } else {
         let errorData;
         try {
           errorData = JSON.parse(responseText);
@@ -219,6 +249,7 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
           throw new Error("API request failed, and response couldn't be parsed as JSON.");
         }
         throw new Error(errorData.error?.message || "API request failed.");
+            }
       }
 
       const data = JSON.parse(responseText);
@@ -256,6 +287,26 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
         explanation,
         stats,
       };
+        } catch (error) {
+          // If we get here, it might be a network error or JSON parse error, etc.
+          // We could retry if it looks like a rate-limit or network issue, otherwise throw.
+          if (error.message.includes("429") || error.message.includes("rate limit")) {
+            console.warn(
+              `Gemini rate-limited in catch. Attempt #${attempt} of ${maxAttempts}. Will retry after ${(delay / 1000).toFixed(1)}s.`
+            );
+            if (attempt >= maxAttempts) {
+              throw new Error(
+                `Rate limit error and max attempts (${maxAttempts}) reached. Aborting.`
+              );
+            }
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            delay = Math.min(delay * 2, maxDelay);
+            continue; // back to while-loop
+          } else {
+            throw error; // Non-rate-limiting error => give up
+          }
+        }
+      } // end while(true)
     }
 
     // helper to format seconds into H:MM:SS
