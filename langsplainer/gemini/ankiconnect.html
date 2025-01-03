@@ -77,6 +77,24 @@
       color: #666;
       margin-top: 5px;
     }
+    .progress-container {
+      margin-top: 10px;
+      border: 1px solid #ccc;
+      background-color: #f7f7f7;
+      padding: 10px;
+      width: 300px;
+      position: relative;
+    }
+    .progress-bar {
+      height: 20px;
+      background-color: #4caf50;
+      width: 0%;
+      transition: width 0.3s;
+    }
+    .progress-text {
+      margin-top: 10px;
+      font-size: 0.9em;
+    }
   </style>
 </head>
 <body>
@@ -244,11 +262,21 @@ Here's an example response for an example input sentence "国央企如此热切�
       const [notesInfo, setNotesInfo] = useState([]);
       const [error, setError] = useState(null);
       const [loading, setLoading] = useState(false);
+
+      // Filters
       const [filterSuspended, setFilterSuspended] = useState(false); // filter out suspended
+      const [filterEmptyNotes, setFilterEmptyNotes] = useState(false); // only show notes with empty "Notes" field
 
       // Gemini
       const [apiKey, setApiKey] = useState("");
       const [showApiKey, setShowApiKey] = useState(false);
+
+      // Bulk generation states
+      const [isBulkGenerating, setIsBulkGenerating] = useState(false);
+      const [bulkProcessedCount, setBulkProcessedCount] = useState(0);
+      const [bulkTotalCount, setBulkTotalCount] = useState(0);
+      const [bulkStartTime, setBulkStartTime] = useState(0);
+      const [timeEstimate, setTimeEstimate] = useState(0);
 
       useEffect(() => {
         // Load any saved API key from localStorage
@@ -342,10 +370,17 @@ Here's an example response for an example input sentence "国央企如此热切�
 
       // Filtered notes
       const filteredNotes = notesInfo.filter((note) => {
+        // Filter 1: Suspended
         if (filterSuspended && note.isSuspended) {
-          // If filterSuspended is true, we EXCLUDE suspended notes.
           return false;
         }
+
+        // Filter 2: Show only notes whose "Notes" field is empty
+        const notesFieldValue = note.fields?.Notes?.value?.trim() || "";
+        if (filterEmptyNotes && notesFieldValue) {
+          return false;
+        }
+
         return true;
       });
 
@@ -399,18 +434,110 @@ Here's an example response for an example input sentence "国央企如此热切�
         }
       };
 
+      // Bulk generation for all *filtered* notes
+      const handleBulkGenerate = async () => {
+        if (!apiKey) {
+          alert("Please provide your Gemini API key first.");
+          return;
+        }
+
+        // We only want to process notes that have a Sentence field (non-empty)
+        // and presumably an empty "Notes" field if we rely on the filter. 
+        // But let's just handle them in the final filtered set:
+        const notesToProcess = filteredNotes.filter((note) => {
+          const sentenceField = note.fields?.Sentence?.value?.trim() || "";
+          return !!sentenceField; // only want notes that have something in Sentence
+        });
+
+        if (notesToProcess.length === 0) {
+          alert("No notes to process (check your filters or ensure Sentence is not empty).");
+          return;
+        }
+
+        setIsBulkGenerating(true);
+        setBulkStartTime(Date.now());
+        setBulkProcessedCount(0);
+        setBulkTotalCount(notesToProcess.length);
+        setTimeEstimate(0);
+
+        // Process each note sequentially
+        for (let i = 0; i < notesToProcess.length; i++) {
+          const note = notesToProcess[i];
+          const noteId = note.noteId;
+          const sentence = note.fields?.Sentence?.value || "";
+
+          const startTime = performance.now();
+
+          try {
+            const { explanation } = await callGemini(apiKey, sentence, "gemini-2.0-flash-exp");
+
+            // Update the note in Anki
+            await ankiConnect("updateNoteFields", {
+              note: {
+                id: noteId,
+                fields: {
+                  Notes: explanation,
+                },
+              },
+            });
+
+            // Update local state
+            setNotesInfo((prev) =>
+              prev.map((n) => {
+                if (n.noteId === noteId) {
+                  return {
+                    ...n,
+                    fields: {
+                      ...n.fields,
+                      Notes: {
+                        ...n.fields.Notes,
+                        value: explanation,
+                      },
+                    },
+                  };
+                }
+                return n;
+              })
+            );
+          } catch (err) {
+            // Log and continue
+            console.error("Error while generating or updating note", noteId, err);
+            setError(err.message);
+          }
+
+          // Update processed count
+          setBulkProcessedCount((prev) => prev + 1);
+
+          // Estimate time
+          const endTime = performance.now();
+          const singleIterationTime = (endTime - startTime) / 1000; // in seconds
+          const notesLeft = notesToProcess.length - (i + 1);
+          // Rough estimate: assume next calls each take about as long as the last call
+          const timeLeft = singleIterationTime * notesLeft;
+          setTimeEstimate(timeLeft);
+        }
+
+        setIsBulkGenerating(false);
+      };
+
       // Count
       const totalCount = notesInfo.length;
       const filteredCount = filteredNotes.length;
+
+      // Bulk progress bar calculations
+      const progressPercent = bulkTotalCount
+        ? Math.floor((bulkProcessedCount / bulkTotalCount) * 100)
+        : 0;
+      const elapsedSeconds = isBulkGenerating ? (Date.now() - bulkStartTime) / 1000 : 0;
 
       return (
         <div>
           <h1>AnkiConnect + Gemini Sentence Breakdown (Optimized)</h1>
           <p>
-            Select a deck, optionally filter out suspended notes, then browse.  
+            Select a deck, optionally filter out suspended notes or notes that already have a “Notes” field, then browse.  
             This version fetches <strong>all notes</strong> and <strong>all cards</strong> in just four calls,
             rather than calling for each note individually.  
-            For each note, click “Generate” to call Gemini and populate the “Notes” field.
+            You can generate breakdowns one-by-one, or do a bulk operation for all filtered notes that have a “Sentence” value.
           </p>
 
           {/* Gemini API Key controls */}
@@ -462,7 +589,40 @@ Here's an example response for an example input sentence "国央企如此热切�
               />
               Hide Suspended Notes
             </label>
+            <label className="filter-label">
+              <input
+                type="checkbox"
+                checked={filterEmptyNotes}
+                onChange={() => setFilterEmptyNotes(!filterEmptyNotes)}
+              />
+              Only show notes missing the "Notes" field
+            </label>
           </div>
+
+          {/* Bulk generate */}
+          {filteredNotes.length > 0 && (
+            <div className="controls">
+              <button
+                onClick={handleBulkGenerate}
+                disabled={isBulkGenerating || filteredNotes.length === 0}
+              >
+                Bulk Generate for All Filtered Notes
+              </button>
+
+              {isBulkGenerating && (
+                <div className="progress-container">
+                  <div className="progress-bar" style={{ width: `${progressPercent}%` }}></div>
+                  <div className="progress-text">
+                    <div>
+                      Processed {bulkProcessedCount}/{bulkTotalCount} notes ({progressPercent}%)
+                    </div>
+                    <div>Elapsed: {elapsedSeconds.toFixed(2)}s</div>
+                    <div>Est. Remaining: {timeEstimate.toFixed(2)}s</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Notes */}
           <div className="notes-container">
@@ -492,9 +652,8 @@ Here's an example response for an example input sentence "国央企如此热切�
                         <td>{isSuspended ? "Yes" : "No"}</td>
                         <td>{sentenceField}</td>
                         <td
-                          className={`${
-                            notesField ? "notes-field-updated" : ""
-                          }`}
+                          className={`${notesField ? "notes-field-updated" : ""}`}
+                          style={{ whiteSpace: 'pre-wrap' }}
                         >
                           {notesField}
                         </td>
@@ -502,6 +661,7 @@ Here's an example response for an example input sentence "国央企如此热切�
                           <button
                             className="generate-button"
                             onClick={() => handleGenerateBreakdown(noteId, sentenceField)}
+                            disabled={loading || isBulkGenerating}
                           >
                             Generate
                           </button>
