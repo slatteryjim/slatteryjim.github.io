@@ -456,8 +456,8 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
 
       // A single shared helper to update a note with explanation
       async function updateNoteWithExplanation(noteId, explanation) {
-        // Anki will render the field as HTML, so convert line breaks to <br>
-        const explanationWithLineBreaks = explanation.replace(/\n/g, "<br>");
+        // Anki will render the field as HTML, so add <br> before each newline
+        const explanationWithLineBreaks = explanation.replace(/\n/g, "<br>\n");
 
         // Update in Anki
         await ankiConnect("updateNoteFields", {
