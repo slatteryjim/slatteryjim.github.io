@@ -84,6 +84,7 @@
         const { useState, useEffect, StrictMode } = React;
 
         const models = [
+            "gemini-2.5-pro-exp-03-25",
             "gemini-2.0-pro-exp-02-05",
             "gemini-2.0-flash",
             "gemini-2.0-flash-lite"
@@ -217,7 +218,6 @@ Maybe they didn't understand one word or phrase, or maybe they knew each word, b
 They will provide a snippet for context, and then the particular sentence to focus on.
 
 Pretend you are a language mentor and fluent speaker of their target language, and you should only reply in that language.
-You are very encouraging of them to succeed in their studies.
 When a user provides a sentence, the GPT will offer the following types of explanations, always responding in the target language of the sentence:
 
 - **Segmented Sentence Breakdown**: A breakdown of the sentence where each phrase is separated by a newline.
@@ -225,7 +225,7 @@ Prefer to group words into phrases for brevity, for example ("读" and "些") sh
 After each word/phrase of the sentence, include in parentheses its accurate pronunciation (e.g., pinyin), and an explanatory alternative in the target language (but DO NOT provide pinyin for that).
 An [English gloss] should be provided as well in square brackets.
 
-No additional commentary or chitchat besides this sentence breakdown format.
+Crucially: Your response must consist only of the segmented sentence breakdown. Do not include any introductory remarks, greetings, explanations of the process, or concluding sentences. Start the response directly with the first segment breakdown.
 
 Here is an example response for the input sentence "国央企如此热切拥抱大模型，或与一道新政有关。":
 """
