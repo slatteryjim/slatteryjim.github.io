@@ -1,67 +1,201 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Sentence Splitter (ESM Default Export)</title>
-    <meta charset="UTF-8"> <!-- Good practice -->
+    <title>Sentence Splitter (Line by Line)</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: sans-serif; }
+        textarea { display: block; margin-bottom: 10px; font-family: monospace; }
+        button { margin-right: 5px; }
+        .status { margin-top: 10px; font-weight: bold; }
+        .error { color: red; }
+        .success { color: green; }
+        .info { color: blue; }
+        label { display: block; margin-bottom: 5px; font-weight: bold;}
+    </style>
 </head>
 <body>
-    <h1>Paste your text here:</h1>
+    <h1>Sentence Splitter (Line by Line)</h1>
+    <p>Splits text into sentences, processing each input line independently.</p>
+
+    <div id="statusArea" class="status">Loading library...</div>
+
+    <label for="inputText">Paste your text here:</label>
     <textarea id="inputText" rows="10" cols="80"></textarea>
+    <div>Input Lines: <span id="inputLineCount">0</span></div>
+
     <button id="splitButton">Split Sentences</button>
-    <h2>Sentences:</h2>
-    <div id="outputSentences"></div>
+
+    <label for="outputText">Sentences (one per line):</label>
+    <textarea id="outputText" rows="10" cols="80" readonly></textarea>
+    <div>
+        Output Lines: <span id="outputLineCount">0</span>
+        <button id="copyButton" disabled>Copy Output</button>
+        <span id="copyStatus" class="info" style="margin-left: 10px;"></span>
+    </div>
+
 
     <script type="module">
-        // 1. Import the DEFAULT export from the module.
-        //    This default export *is* the segmentation function.
-        import segmentFunction from 'https://unpkg.com/sentencex@0.4.2/dist/esm/index.js';
+        // Attempt to import the DEFAULT export
+        let segmentFunction = null;
+        let loadError = null;
+        try {
+            // Use a dynamic import() to better handle potential loading errors async
+            // although for this specific case, a static import is also fine.
+            // Static import is simpler here.
+            const module = await import('https://unpkg.com/sentencex@0.4.2/dist/esm/index.js');
+            segmentFunction = module.default; // Default export *is* the function
+            console.log("Imported Default Function:", segmentFunction);
+        } catch (error) {
+            console.error("Failed to load sentencex library:", error);
+            loadError = error;
+        }
 
-        // (Optional) Log the imported default function
-        console.log("Imported Default Function:", segmentFunction);
+        // Get references to HTML elements
+        const inputText       = document.getElementById('inputText');
+        const splitButton     = document.getElementById('splitButton');
+        const outputText      = document.getElementById('outputText');
+        const inputLineCount  = document.getElementById('inputLineCount');
+        const outputLineCount = document.getElementById('outputLineCount');
+        const statusArea      = document.getElementById('statusArea');
+        const copyButton      = document.getElementById('copyButton');
+        const copyStatus      = document.getElementById('copyStatus');
 
-        // 2. Get references to your HTML elements
-        const inputText   = document.getElementById('inputText');
-        const splitButton = document.getElementById('splitButton');
-        const outputDiv   = document.getElementById('outputSentences');
+        // --- Initial Check & Setup ---
+        if (typeof segmentFunction === 'function') {
+            statusArea.textContent = 'Library loaded successfully. Ready.';
+            statusArea.className = 'status success';
+            splitButton.disabled = false;
+        } else {
+            statusArea.textContent = `Error: Sentence splitter library failed to load. ${loadError ? loadError.message : '(Unknown error)'}`;
+            statusArea.className = 'status error';
+            splitButton.disabled = true;
+            copyButton.disabled = true; // Also disable copy if library failed
+            if (inputText) inputText.disabled = true; // Maybe disable input too
+        }
 
-        // 3. Define your function
+        // --- Core Functionality ---
         function splitSentences() {
-            if (!inputText) {
-                console.error("Input text area not found!");
-                return;
-            }
-            const text = inputText.value;
-
-            // Check if the imported function exists
-            // We now expect segmentFunction itself to be the function.
+            // Guard clause: Ensure library loaded (redundant check, but safe)
             if (typeof segmentFunction !== 'function') {
-                 console.error("sentencex segmentation function not loaded correctly!");
-                 outputDiv.innerHTML = '<p style="color: red;">Error: Sentence splitter library failed to load.</p>';
+                 statusArea.textContent = 'Error: Cannot split, library not loaded.';
+                 statusArea.className = 'status error';
+                 copyButton.disabled = true;
+                 return;
+            }
+             if (!inputText || !outputText || !inputLineCount || !outputLineCount) {
+                 console.error("Required HTML elements not found!");
+                 statusArea.textContent = 'Error: Page elements missing.';
+                 statusArea.className = 'status error';
                  return;
              }
 
+            const rawText = inputText.value;
+            const inputLines = rawText.split('\n');
+            const inputCount = inputLines.length;
+            inputLineCount.textContent = inputCount; // Update input line count
+
+            let allSentences = [];
+            copyStatus.textContent = ''; // Clear previous copy status
+
             try {
-                 // Call the imported function DIRECTLY
-                 const sentences = segmentFunction('auto', text); // Use the function directly
-
-                 outputDiv.innerHTML = ''; // Clear previous output
-
-                 sentences.forEach(sentenceText => {
-                     const p = document.createElement('p');
-                     p.textContent = sentenceText;
-                     outputDiv.appendChild(p);
+                 // Process each line individually
+                 inputLines.forEach(line => {
+                     if (line.trim() === '') {
+                         // Preserve blank lines if desired, or skip them.
+                         // Let's preserve them as empty strings in the output for now.
+                         // Or segmentFunction might handle this. Let's see sentencex behavior.
+                         // If sentencex returns empty array for empty line, it works out.
+                         // If sentencex returns empty array for whitespace line, also good.
+                         const sentencesInLine = segmentFunction('auto', line);
+                         allSentences.push(...sentencesInLine);
+                     } else {
+                         const sentencesInLine = segmentFunction('auto', line);
+                         // Add the sentences found on this line to the overall list
+                         allSentences.push(...sentencesInLine);
+                     }
                  });
+
+                 // Join the collected sentences with newline characters for the textarea
+                 const outputString = allSentences.join('\n');
+                 outputText.value = outputString;
+
+                 // Update output line count
+                 const outputCount = allSentences.length;
+                 outputLineCount.textContent = outputCount;
+
+                 // Enable copy button if there is output
+                 copyButton.disabled = outputString.length === 0;
+
+                 statusArea.textContent = `Processed ${inputCount} input lines into ${outputCount} output lines.`;
+                 statusArea.className = 'status info';
+
             } catch (error) {
                  console.error("Error during sentence segmentation:", error);
-                 outputDiv.innerHTML = `<p style="color: red;">Error splitting sentences: ${error.message}</p>`;
+                 statusArea.textContent = `Error splitting sentences: ${error.message}`;
+                 statusArea.className = 'status error';
+                 outputText.value = ''; // Clear output on error
+                 outputLineCount.textContent = '0';
+                 copyButton.disabled = true;
             }
         }
 
-        // 4. Attach the event listener programmatically
+        // --- Copy to Clipboard Functionality ---
+        async function copyOutputToClipboard() {
+            if (!navigator.clipboard) {
+                copyStatus.textContent = 'Clipboard API not available.';
+                copyStatus.className = 'status error';
+                return;
+            }
+            if (!outputText) return;
+
+            const textToCopy = outputText.value;
+            if (!textToCopy) {
+                 copyStatus.textContent = 'Nothing to copy.';
+                 copyStatus.className = 'status info';
+                 return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(textToCopy);
+                copyStatus.textContent = 'Copied!';
+                copyStatus.className = 'status success';
+                // Optionally clear the message after a few seconds
+                setTimeout(() => {
+                    if (copyStatus.textContent === 'Copied!') {
+                       copyStatus.textContent = '';
+                       copyStatus.className = 'info';
+                    }
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                copyStatus.textContent = 'Copy failed!';
+                copyStatus.className = 'status error';
+            }
+        }
+
+        // --- Attach Event Listeners ---
         if (splitButton) {
-            splitButton.addEventListener('click', splitSentences);
+            // Only add listener if the button isn't disabled due to load error
+            if (!splitButton.disabled) {
+                splitButton.addEventListener('click', splitSentences);
+            }
         } else {
             console.error("Split button not found!");
+        }
+
+        if (copyButton) {
+            copyButton.addEventListener('click', copyOutputToClipboard);
+        } else {
+            console.error("Copy button not found!");
+        }
+
+        // Optional: Update input line count dynamically as user types
+        if (inputText && inputLineCount) {
+            inputText.addEventListener('input', () => {
+                const lines = inputText.value.split('\n');
+                inputLineCount.textContent = lines.length;
+            });
         }
 
     </script>
