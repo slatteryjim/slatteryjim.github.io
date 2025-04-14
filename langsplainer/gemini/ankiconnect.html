@@ -137,7 +137,7 @@
     /************************************************************
      * Gemini API Helpers
      ************************************************************/
-    async function callGemini(apiKey, sentence, model="gemini-2.0-flash-exp") {
+    async function callGemini(apiKey, sentence, model="gemini-2.0-flash") {
       // Parameters for exponential backoff:
       const maxAttempts = 1000;        // Total times we’ll retry before giving up
       const initialDelay = 5000;       // Start with 5 seconds
