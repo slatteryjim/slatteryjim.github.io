@@ -56,6 +56,37 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        /* Styling for sentence edit list */
+        .sentence-item {
+            display: flex;
+            align-items: flex-start; /* Align items to the top */
+            gap: 0.5rem; /* space-x-2 */
+            margin-bottom: 0.5rem; /* space-y-2 */
+            padding: 0.5rem;
+            border: 1px solid #e5e7eb; /* border-gray-200 */
+            border-radius: 0.375rem; /* rounded-md */
+            background-color: #f9fafb; /* bg-gray-50 */
+        }
+        .sentence-item textarea {
+            flex-grow: 1;
+            padding: 0.5rem;
+            border: 1px solid #d1d5db; /* border-gray-300 */
+            border-radius: 0.375rem; /* rounded-md */
+            min-height: 40px; /* Ensure textarea has some height */
+            resize: vertical; /* Allow vertical resize */
+            font-size: 0.875rem; /* text-sm */
+        }
+        .sentence-item .actions button {
+            padding: 0.25rem 0.5rem; /* py-1 px-2 */
+            font-size: 0.75rem; /* text-xs */
+            border-radius: 0.25rem; /* rounded-sm */
+            margin-left: 0.25rem;
+        }
+        .sentence-item .actions {
+           display: flex;
+           flex-direction: column; /* Stack buttons vertically */
+           gap: 0.25rem;
+        }
     </style>
 </head>
 <body class="bg-gray-100 p-4 md:p-8">
@@ -100,10 +131,23 @@
         </div>
 
         <div class="mb-4 text-center">
-            <button id="process-button" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-md shadow transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
-                Process Text and Add Cards
+            <button id="segment-button" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-md shadow transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+                Segment Text
                 <span id="loading-spinner" class="loader hidden"></span>
             </button>
+        </div>
+
+        <div id="edit-sentences-container" class="mt-6 hidden">
+            <h2 class="text-xl font-semibold mb-3 text-gray-700">Review and Edit Sentences</h2>
+            <p class="text-sm text-gray-600 mb-4">Review the segmented sentences below. You can edit the text directly, delete sentences, or merge a sentence with the one immediately following it.</p>
+            <div id="sentences-list" class="mb-4 border border-gray-300 rounded-md p-4 max-h-96 overflow-y-auto">
+                </div>
+            <div class="text-center">
+                <button id="add-cards-button" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-md shadow transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+                    Add Cards to Anki
+                    <span id="add-cards-spinner" class="loader hidden"></span>
+                </button>
+            </div>
         </div>
 
         <div id="status-log" class="mt-6 p-4 border border-gray-200 rounded-md bg-gray-50 h-48 overflow-y-auto text-sm">
@@ -120,7 +164,13 @@
             "Sentence", "Translation/Analysis", "Book Title", "Chapter",
             "Sentence Number", "Total Sentences", "Source URL", "Audio"
         ];
-        const GEMINI_API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+        const GEMINI_API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+        const ANKI_CONNECT_POLL_INTERVAL = 10000; // Check connection every 10 seconds
+
+        // --- State Variables ---
+        let currentSentences = []; // Holds the array of sentences for editing
+        let ankiConnected = false; // Track connection state for auto-reload
+        let ankiConnectPollTimer = null; // Timer ID for polling
 
         // --- DOM Elements ---
         const apiKeyInput = document.getElementById('api-key');
@@ -131,9 +181,13 @@
         const sourceUrlInput = document.getElementById('source-url');
         const deckSelect = document.getElementById('anki-deck');
         const sourceTextArea = document.getElementById('source-text');
-        const processButton = document.getElementById('process-button');
-        const statusLog = document.getElementById('status-log');
+        const segmentButton = document.getElementById('segment-button');
         const loadingSpinner = document.getElementById('loading-spinner');
+        const statusLog = document.getElementById('status-log');
+        const editSentencesContainer = document.getElementById('edit-sentences-container');
+        const sentencesListDiv = document.getElementById('sentences-list');
+        const addCardsButton = document.getElementById('add-cards-button');
+        const addCardsSpinner = document.getElementById('add-cards-spinner');
 
         // --- Utility Functions ---
 
@@ -164,16 +218,18 @@
         }
 
         /**
-         * Shows or hides the loading spinner and disables/enables the button.
+         * Shows or hides the loading spinner and disables/enables a button.
          * @param {boolean} isLoading - Whether to show the loading state.
+         * @param {HTMLButtonElement} button - The button element.
+         * @param {HTMLElement} spinner - The spinner element.
          */
-        function setLoadingState(isLoading) {
+        function setLoadingState(isLoading, button, spinner) {
             if (isLoading) {
-                processButton.disabled = true;
-                loadingSpinner.classList.remove('hidden');
+                button.disabled = true;
+                spinner.classList.remove('hidden');
             } else {
-                processButton.disabled = false;
-                loadingSpinner.classList.add('hidden');
+                button.disabled = false;
+                spinner.classList.add('hidden');
             }
         }
 
@@ -188,41 +244,23 @@
             try {
                 const response = await fetch(ANKI_CONNECT_URL, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json', },
                     body: JSON.stringify({ action, version: ANKI_CONNECT_VERSION, params }),
                 });
-
-                // Check if the response is OK (status code 200-299)
                 if (!response.ok) {
-                    // Try to read the response body for more details if possible
                     let errorBody = 'Could not read error response body.';
-                    try {
-                        errorBody = await response.text();
-                    } catch (e) { /* Ignore errors reading the body */ }
+                    try { errorBody = await response.text(); } catch (e) { /* Ignore */ }
                     throw new Error(`AnkiConnect request failed: ${response.status} ${response.statusText}. Body: ${errorBody}`);
                 }
-
                 const data = await response.json();
-
-                // Check for errors reported within the AnkiConnect JSON response
-                if (data.error) {
-                    throw new Error(`AnkiConnect Error (${action}): ${data.error}`);
-                }
-                if (typeof data.result === 'undefined') {
-                     throw new Error(`AnkiConnect Error (${action}): Response missing 'result' field.`);
-                }
-
+                if (data.error) { throw new Error(`AnkiConnect Error (${action}): ${data.error}`); }
+                if (typeof data.result === 'undefined') { throw new Error(`AnkiConnect Error (${action}): Response missing 'result' field.`); }
                 return data.result;
             } catch (error) {
-                // Network errors (e.g., Anki not running, AnkiConnect not installed/enabled)
-                // or errors thrown above
                 console.error('AnkiConnect Request Error:', error);
-                 if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-                     throw new Error('Failed to connect to AnkiConnect. Is Anki running with AnkiConnect installed and enabled?');
-                 }
-                // Re-throw other errors
+                if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+                    throw new Error('Failed to connect to AnkiConnect. Is Anki running with AnkiConnect installed and enabled?');
+                }
                 throw error;
             }
         }
@@ -230,32 +268,61 @@
         // --- Core Logic Functions ---
 
         /**
-         * Checks the connection to AnkiConnect and updates the UI.
+         * Checks the connection to AnkiConnect and updates the UI. Sets global state.
+         * @returns {Promise<boolean>} - True if connected, false otherwise.
          */
         async function checkAnkiConnection() {
-            logStatus('Checking AnkiConnect connection...');
+            // Don't log every poll, only initial check or status change
+            const isInitialCheck = !ankiStatusEl.textContent || ankiStatusEl.textContent === 'Checking...';
+            if (isInitialCheck) {
+                 logStatus('Checking AnkiConnect connection...');
+            }
             ankiStatusEl.textContent = 'Checking...';
             ankiStatusEl.className = 'ml-2 font-medium text-yellow-600';
             ankiStatusContainerEl.className = 'mb-4 p-3 rounded-md border border-yellow-300 bg-yellow-50';
 
             try {
-                await ankiConnectRequest('version'); // Simple request to check connectivity
+                await ankiConnectRequest('version'); // Simple request
+                if (!ankiConnected || isInitialCheck) { // Log only on initial connect or reconnect
+                    logStatus('AnkiConnect connection successful.', 'success');
+                }
                 ankiStatusEl.textContent = 'Connected';
                 ankiStatusEl.className = 'ml-2 font-medium text-green-600';
                 ankiStatusContainerEl.className = 'mb-4 p-3 rounded-md border border-green-300 bg-green-50';
-                logStatus('AnkiConnect connection successful.', 'success');
+                ankiConnected = true;
                 return true;
             } catch (error) {
+                 if (ankiConnected || isInitialCheck) { // Log only on initial failure or disconnect
+                    logStatus(`AnkiConnect connection failed: ${error.message}`, 'error');
+                 }
                 ankiStatusEl.textContent = 'Disconnected';
                 ankiStatusEl.className = 'ml-2 font-medium text-red-600';
-                 ankiStatusContainerEl.className = 'mb-4 p-3 rounded-md border border-red-300 bg-red-50';
-                logStatus(`AnkiConnect connection failed: ${error.message}`, 'error');
+                ankiStatusContainerEl.className = 'mb-4 p-3 rounded-md border border-red-300 bg-red-50';
+                ankiConnected = false;
+                // Disable deck dropdown if disconnected
+                deckSelect.disabled = true;
+                deckSelect.innerHTML = '<option value="" disabled selected>Connect to Anki first</option>';
                 return false;
             }
         }
 
         /**
-         * Fetches deck names from Anki and populates the dropdown.
+         * Periodically checks connection and reloads decks if needed.
+         */
+        async function pollAnkiConnection() {
+            const previouslyConnected = ankiConnected;
+            const currentlyConnected = await checkAnkiConnection();
+
+            // If we just reconnected, reload the decks
+            if (!previouslyConnected && currentlyConnected) {
+                logStatus('Anki reconnected, reloading decks...');
+                await loadAnkiDecks();
+            }
+        }
+
+
+        /**
+         * Fetches deck names from Anki and populates the dropdown. (Same as before)
          */
         async function loadAnkiDecks() {
             logStatus('Fetching Anki decks...');
@@ -280,7 +347,7 @@
         }
 
         /**
-         * Checks if the required note type exists, creates it if not.
+         * Checks if the required note type exists, creates it if not. (Same as before)
          * @returns {Promise<boolean>} - True if the note type exists or was created, false otherwise.
          */
         async function ensureNoteTypeExists() {
@@ -289,50 +356,18 @@
                 const modelNames = await ankiConnectRequest('modelNames');
                 if (modelNames.includes(NOTE_TYPE_NAME)) {
                     logStatus(`Note Type "${NOTE_TYPE_NAME}" already exists.`, 'success');
-                    // Optional V1.1: Verify fields match REQUIRED_FIELDS
-                    // const modelFieldNames = await ankiConnectRequest('modelFieldNames', { modelName: NOTE_TYPE_NAME });
-                    // const hasAllFields = REQUIRED_FIELDS.every(field => modelFieldNames.includes(field));
-                    // if (!hasAllFields) {
-                    //     logStatus(`Note Type "${NOTE_TYPE_NAME}" exists but is missing required fields. Please check Anki.`, 'error');
-                    //     return false;
-                    // }
                     return true;
                 } else {
                     logStatus(`Note Type "${NOTE_TYPE_NAME}" not found. Attempting to create...`);
-                    const createModelParams = {
-                        modelName: NOTE_TYPE_NAME,
-                        inOrderFields: REQUIRED_FIELDS,
-                        css: `/* CSS for ${NOTE_TYPE_NAME} */
-.card {
-    font-family: arial;
-    font-size: 20px;
-    text-align: center;
-    color: black;
-    background-color: white;
-}
-
-.sentence { font-size: 24px; font-weight: bold; margin-bottom: 15px; }
-.context { font-size: 14px; color: grey; }
-.analysis { margin-top: 15px; text-align: left; font-size: 18px; }`,
-                        cardTemplates: [
-                            {
-                                Name: 'Sentence Card',
-                                Front: `<div class="sentence">{{Sentence}}</div>
-<div class="context">
-    Source: {{Book Title}} - Ch. {{Chapter}} (Sentence {{Sentence Number}} of {{Total Sentences}})<br>
-    {{#Source URL}}URL: <a href="{{Source URL}}">{{Source URL}}</a>{{/Source URL}}
-</div>
-{{#Audio}}[sound:{{Audio}}]{{/Audio}}`, // Display audio if present
-                                Back: `{{FrontSide}}
-<hr id=answer>
-<div class="analysis">{{Translation/Analysis}}</div>
-<div class="context" style="margin-top: 10px;">
-    <br>---<br>
-    <i>Source: {{Book Title}} - Ch. {{Chapter}} (Sentence {{Sentence Number}} of {{Total Sentences}})</i><br>
-    <i>{{#Source URL}}URL: <a href="{{Source URL}}">{{Source URL}}</a>{{/Source URL}}</i>
-</div>`
-                            }
-                        ]
+                    const createModelParams = { /* ... same params as before ... */
+                         modelName: NOTE_TYPE_NAME,
+                         inOrderFields: REQUIRED_FIELDS,
+                         css: `/* CSS for ${NOTE_TYPE_NAME} */\n.card {\n font-family: arial;\n font-size: 20px;\n text-align: center;\n color: black;\n background-color: white;\n}\n\n.sentence { font-size: 24px; font-weight: bold; margin-bottom: 15px; }\n.context { font-size: 14px; color: grey; }\n.analysis { margin-top: 15px; text-align: left; font-size: 18px; }`,
+                         cardTemplates: [ {
+                             Name: 'Sentence Card',
+                             Front: `<div class="sentence">{{Sentence}}</div>\n<div class="context">\n Source: {{Book Title}} - Ch. {{Chapter}} (Sentence {{Sentence Number}} of {{Total Sentences}})<br>\n {{#Source URL}}URL: <a href="{{Source URL}}">{{Source URL}}</a>{{/Source URL}}\n</div>\n{{#Audio}}[sound:{{Audio}}]{{/Audio}}`,
+                             Back: `{{FrontSide}}\n<hr id=answer>\n<div class="analysis">{{Translation/Analysis}}</div>\n<div class="context" style="margin-top: 10px;">\n <br>---<br>\n <i>Source: {{Book Title}} - Ch. {{Chapter}} (Sentence {{Sentence Number}} of {{Total Sentences}})</i><br>\n <i>{{#Source URL}}URL: <a href="{{Source URL}}">{{Source URL}}</a>{{/Source URL}}</i>\n</div>`
+                         } ]
                     };
                     await ankiConnectRequest('createModel', createModelParams);
                     logStatus(`Successfully created Note Type "${NOTE_TYPE_NAME}".`, 'success');
@@ -345,7 +380,7 @@
         }
 
         /**
-         * Segments text into sentences using the Gemini API.
+         * Segments text into sentences using the Gemini API. (Same as before)
          * @param {string} text - The text to segment.
          * @param {string} apiKey - The Google Gemini API key.
          * @returns {Promise<string[]>} - An array of sentences.
@@ -354,62 +389,37 @@
         async function segmentTextWithLLM(text, apiKey) {
             logStatus('Segmenting text using Google Gemini API...');
             const prompt = `Segment the following text into individual sentences. Return each sentence on a new line. Ensure proper handling of punctuation like periods, question marks, and exclamation points. Do not add any extra formatting or numbering. Text:\n\n${text}`;
-
             try {
                 const response = await fetch(`${GEMINI_API_ENDPOINT}?key=${apiKey}`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json', },
                     body: JSON.stringify({
                         contents: [{ parts: [{ text: prompt }] }],
-                        // Optional: Add safety settings if needed
-                        // safetySettings: [
-                        //   { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-                        //   // ... other categories
-                        // ],
-                        generationConfig: {
-                           // temperature: 0.7, // Adjust creativity if needed
-                           // maxOutputTokens: 8192, // Adjust based on expected output size
-                        }
+                        // safetySettings: [ { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" } ], // Example
+                        // generationConfig: { temperature: 0.7, maxOutputTokens: 8192 } // Example
                     }),
                 });
-
                 if (!response.ok) {
                     let errorBody = 'Could not read error response body.';
-                     try {
-                         errorBody = await response.text();
-                     } catch(e) {/* ignore */}
+                    try { errorBody = await response.text(); } catch(e) {/* ignore */}
                     throw new Error(`Gemini API request failed: ${response.status} ${response.statusText}. Body: ${errorBody}`);
                 }
-
                 const data = await response.json();
-
-                // Check for errors or blocked content in the response
-                 if (!data.candidates || data.candidates.length === 0) {
-                     if (data.promptFeedback && data.promptFeedback.blockReason) {
-                         throw new Error(`Gemini API Error: Blocked - ${data.promptFeedback.blockReason}. ${data.promptFeedback.safetyRatings.map(r => `${r.category}: ${r.probability}`).join(', ')}`);
-                     }
-                     throw new Error('Gemini API Error: No response candidates found.');
-                 }
-
-                 // Check finish reason
-                 const finishReason = data.candidates[0].finishReason;
-                 if (finishReason && finishReason !== 'STOP') {
-                      logStatus(`Gemini API Warning: Finish reason was ${finishReason}. Output might be incomplete.`, 'info'); // Log as info, not error
-                 }
-
-                // Extract the text content
-                const content = data.candidates[0]?.content?.parts?.[0]?.text;
-                if (!content) {
-                    throw new Error('Gemini API Error: Could not extract text from the response.');
+                if (!data.candidates || data.candidates.length === 0) {
+                    if (data.promptFeedback && data.promptFeedback.blockReason) {
+                        throw new Error(`Gemini API Error: Blocked - ${data.promptFeedback.blockReason}. ${data.promptFeedback.safetyRatings.map(r => `${r.category}: ${r.probability}`).join(', ')}`);
+                    }
+                    throw new Error('Gemini API Error: No response candidates found.');
                 }
-
-                // Split into sentences (assuming one sentence per line as requested)
+                const finishReason = data.candidates[0].finishReason;
+                if (finishReason && finishReason !== 'STOP') {
+                     logStatus(`Gemini API Warning: Finish reason was ${finishReason}. Output might be incomplete.`, 'info');
+                }
+                const content = data.candidates[0]?.content?.parts?.[0]?.text;
+                if (!content) { throw new Error('Gemini API Error: Could not extract text from the response.'); }
                 const sentences = content.trim().split('\n').map(s => s.trim()).filter(s => s.length > 0);
                 logStatus(`Successfully segmented text into ${sentences.length} sentences.`, 'success');
                 return sentences;
-
             } catch (error) {
                 console.error('Gemini API Error:', error);
                 logStatus(`Error calling Gemini API: ${error.message}`, 'error');
@@ -418,10 +428,113 @@
         }
 
         /**
-         * Adds a single note to Anki.
+         * Renders the editable list of sentences.
+         */
+        function renderEditableSentences() {
+            sentencesListDiv.innerHTML = ''; // Clear previous list
+            if (currentSentences.length === 0) {
+                sentencesListDiv.innerHTML = '<p class="text-gray-500 text-center">No sentences to display.</p>';
+                addCardsButton.disabled = true; // Disable add button if no sentences
+                return;
+            }
+
+            currentSentences.forEach((sentence, index) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'sentence-item';
+                itemDiv.dataset.index = index; // Store index for event handlers
+
+                const sentenceNumberSpan = document.createElement('span');
+                sentenceNumberSpan.className = 'font-mono text-xs text-gray-500 pt-2'; // Added pt-2 for alignment
+                sentenceNumberSpan.textContent = `${index + 1}.`;
+
+                const textArea = document.createElement('textarea');
+                textArea.value = sentence;
+                textArea.rows = 2; // Start with 2 rows, allow resize
+                textArea.addEventListener('change', (e) => { // Update on change (when focus is lost)
+                    updateSentence(index, e.target.value);
+                });
+                // Optional: Update on input for immediate feedback (can be less performant)
+                // textArea.addEventListener('input', (e) => {
+                //     updateSentence(index, e.target.value);
+                // });
+
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'actions';
+
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Delete';
+                deleteButton.className = 'bg-red-500 hover:bg-red-600 text-white';
+                deleteButton.onclick = () => deleteSentence(index);
+
+                const mergeButton = document.createElement('button');
+                mergeButton.textContent = 'Merge ↓';
+                mergeButton.className = 'bg-yellow-500 hover:bg-yellow-600 text-white';
+                if (index === currentSentences.length - 1) {
+                    mergeButton.disabled = true; // Cannot merge last item down
+                    mergeButton.title = "Cannot merge last sentence down";
+                }
+                mergeButton.onclick = () => mergeSentenceDown(index);
+
+                actionsDiv.appendChild(deleteButton);
+                actionsDiv.appendChild(mergeButton);
+
+                itemDiv.appendChild(sentenceNumberSpan);
+                itemDiv.appendChild(textArea);
+                itemDiv.appendChild(actionsDiv);
+                sentencesListDiv.appendChild(itemDiv);
+            });
+
+            // Show the container and enable the add button
+            editSentencesContainer.classList.remove('hidden');
+             addCardsButton.disabled = false;
+        }
+
+        /**
+         * Updates a sentence in the state array.
+         * @param {number} index - The index of the sentence to update.
+         * @param {string} newText - The new text for the sentence.
+         */
+        function updateSentence(index, newText) {
+            if (index >= 0 && index < currentSentences.length) {
+                currentSentences[index] = newText.trim(); // Trim whitespace
+                // Optional: Add visual feedback or log
+                // console.log(`Sentence ${index + 1} updated.`);
+                // No need to re-render the whole list just for a text change
+            }
+        }
+
+        /**
+         * Deletes a sentence from the list and re-renders.
+         * @param {number} index - The index of the sentence to delete.
+         */
+        function deleteSentence(index) {
+            if (index >= 0 && index < currentSentences.length) {
+                const deletedSentence = currentSentences.splice(index, 1);
+                logStatus(`Deleted sentence ${index + 1}: "${deletedSentence[0].substring(0,30)}..."`, 'info');
+                renderEditableSentences(); // Re-render the list with updated indices and items
+            }
+        }
+
+        /**
+         * Merges a sentence with the one below it and re-renders.
+         * @param {number} index - The index of the sentence to merge down.
+         */
+        function mergeSentenceDown(index) {
+            if (index >= 0 && index < currentSentences.length - 1) {
+                const mergedText = `${currentSentences[index]} ${currentSentences[index + 1]}`; // Add space between
+                currentSentences[index] = mergedText;
+                const deletedSentence = currentSentences.splice(index + 1, 1); // Remove the sentence below
+                logStatus(`Merged sentence ${index + 1} with ${index + 2}.`, 'info');
+                renderEditableSentences(); // Re-render the list
+            }
+        }
+
+
+        /**
+         * Adds a single note to Anki. (Same as before, but used by addCardsToAnki)
          * @param {string} deckName - The target deck name.
          * @param {object} noteData - The data for the note fields.
-         * @returns {Promise<number|null>} - The ID of the created note, or null if failed.
+         * @returns {Promise<number|null>} - The ID of the created note, or null if failed/duplicate.
          */
         async function addAnkiNote(deckName, noteData) {
             const params = {
@@ -429,81 +542,57 @@
                     deckName: deckName,
                     modelName: NOTE_TYPE_NAME,
                     fields: noteData,
-                    options: {
-                        allowDuplicate: false // Or true, depending on desired behavior
-                    },
-                    tags: ["anki-sentence-miner", noteData["Book Title"].replace(/\s+/g, '_')] // Example tags
+                    options: { allowDuplicate: false },
+                    tags: ["anki-sentence-miner", noteData["Book Title"].replace(/\s+/g, '_')]
                 }
             };
             try {
                 const noteId = await ankiConnectRequest('addNote', params);
-                 if (noteId === null) {
-                     // This can happen if allowDuplicate is false and the card exists
-                     logStatus(`Note for sentence "${noteData.Sentence.substring(0, 30)}..." might already exist (or other addNote issue).`, 'info');
-                     return null; // Indicate possible duplicate or other non-error failure
-                 }
+                if (noteId === null) {
+                    logStatus(`Note for sentence "${noteData.Sentence.substring(0, 30)}..." might already exist (or other addNote issue).`, 'info');
+                    return null;
+                }
                 return noteId;
             } catch (error) {
                 logStatus(`Failed to add note for sentence "${noteData.Sentence.substring(0, 30)}...": ${error.message}`, 'error');
-                // Decide if one failure should stop the whole process or just skip the card
-                // For now, we log the error and continue
                 return null; // Indicate failure
             }
         }
 
 
-        // --- Event Listeners ---
+        // --- Event Handlers ---
 
         /**
-         * Handles the click event for the process button.
+         * Handles the click event for the "Segment Text" button.
          */
-        async function handleProcessButtonClick() {
+        async function handleSegmentTextClick() {
             // --- 1. Validation ---
             const apiKey = apiKeyInput.value.trim();
             const bookTitle = bookTitleInput.value.trim();
             const chapter = chapterInput.value.trim();
-            const sourceUrl = sourceUrlInput.value.trim();
             const selectedDeck = deckSelect.value;
             const sourceText = sourceTextArea.value.trim();
 
-            if (!apiKey) {
-                logStatus('Please enter your Google Gemini API Key.', 'error');
-                apiKeyInput.focus();
-                return;
-            }
-            if (!bookTitle) {
-                logStatus('Please enter the Book Title.', 'error');
-                bookTitleInput.focus();
-                return;
-            }
-            if (!chapter) {
-                logStatus('Please enter the Chapter number/name.', 'error');
-                chapterInput.focus();
-                return;
-            }
-             if (!selectedDeck) {
-                logStatus('Please select a target Anki Deck.', 'error');
-                deckSelect.focus();
-                return;
-            }
-            if (!sourceText) {
-                logStatus('Please paste the source text.', 'error');
-                sourceTextArea.focus();
-                return;
-            }
+            // Reset previous results
+             currentSentences = [];
+             editSentencesContainer.classList.add('hidden');
+             sentencesListDiv.innerHTML = '';
 
-            setLoadingState(true);
-            logStatus('Starting processing...');
 
-            // --- 2. Check Anki Connection & Note Type ---
+            if (!apiKey) { logStatus('Please enter your Google Gemini API Key.', 'error'); apiKeyInput.focus(); return; }
+            if (!bookTitle) { logStatus('Please enter the Book Title.', 'error'); bookTitleInput.focus(); return; }
+            if (!chapter) { logStatus('Please enter the Chapter number/name.', 'error'); chapterInput.focus(); return; }
+            if (!selectedDeck) { logStatus('Please select a target Anki Deck.', 'error'); deckSelect.focus(); return; }
+            if (!sourceText) { logStatus('Please paste the source text.', 'error'); sourceTextArea.focus(); return; }
+
+            setLoadingState(true, segmentButton, loadingSpinner);
+            logStatus('Starting text segmentation...');
+
+            // --- 2. Check Anki Connection ---
+            // No need to check Note Type here, will be checked before adding cards
             if (!(await checkAnkiConnection())) {
-                 logStatus('Processing halted: Cannot connect to Anki.', 'error');
-                 setLoadingState(false);
-                 return;
-            }
-            if (!(await ensureNoteTypeExists())) {
-                 logStatus(`Processing halted: Could not ensure Note Type "${NOTE_TYPE_NAME}" exists. Check Anki or previous logs.`, 'error');
-                 setLoadingState(false);
+                 logStatus('Segmentation halted: Cannot connect to Anki.', 'error');
+                 setLoadingState(false, segmentButton, loadingSpinner);
                  return;
             }
 
@@ -513,28 +602,78 @@
                  sentences = await segmentTextWithLLM(sourceText, apiKey);
              } catch (error) {
                  // Error already logged by segmentTextWithLLM
-                 logStatus('Processing halted due to LLM error.', 'error');
-                 setLoadingState(false);
+                 logStatus('Segmentation halted due to LLM error.', 'error');
+                 setLoadingState(false, segmentButton, loadingSpinner);
                  return;
              }
 
              if (sentences.length === 0) {
-                 logStatus('LLM returned no sentences. Please check the input text or try again.', 'error');
-                 setLoadingState(false);
-                 return;
+                 logStatus('LLM returned no sentences. Please check the input text or try again.', 'warning'); // More of a warning now
+                 // Still show the (empty) edit container
              }
 
-             const totalSentences = sentences.length;
-             logStatus(`Found ${totalSentences} sentences. Preparing to add to Anki deck "${selectedDeck}"...`);
+             currentSentences = sentences; // Store sentences for editing
+             renderEditableSentences(); // Display the editable list
 
-             // --- 4. Add Notes to Anki ---
+             logStatus('Segmentation complete. Please review and edit the sentences below.', 'info');
+             setLoadingState(false, segmentButton, loadingSpinner);
+             // Scroll to the edit section smoothly
+             editSentencesContainer.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        /**
+         * Handles the click event for the "Add Cards to Anki" button.
+         */
+        async function handleAddCardsToAnkiClick() {
+            // --- 1. Get Data & Validation ---
+            const bookTitle = bookTitleInput.value.trim();
+            const chapter = chapterInput.value.trim();
+            const sourceUrl = sourceUrlInput.value.trim();
+            const selectedDeck = deckSelect.value;
+
+            // Re-validate essential info
+            if (!bookTitle || !chapter || !selectedDeck) {
+                 logStatus('Missing Book Title, Chapter, or Deck selection.', 'error');
+                 return;
+            }
+            if (currentSentences.length === 0) {
+                 logStatus('No sentences to add.', 'error');
+                 return;
+            }
+
+            setLoadingState(true, addCardsButton, addCardsSpinner);
+            logStatus('Starting to add cards to Anki...');
+
+             // --- 2. Check Anki Connection & Note Type ---
+             if (!(await checkAnkiConnection())) {
+                  logStatus('Adding cards halted: Cannot connect to Anki.', 'error');
+                  setLoadingState(false, addCardsButton, addCardsSpinner);
+                  return;
+             }
+             if (!(await ensureNoteTypeExists())) {
+                  logStatus(`Adding cards halted: Could not ensure Note Type "${NOTE_TYPE_NAME}" exists. Check Anki or previous logs.`, 'error');
+                  setLoadingState(false, addCardsButton, addCardsSpinner);
+                  return;
+             }
+
+             // --- 3. Add Notes to Anki ---
+             const totalSentences = currentSentences.length;
+             logStatus(`Preparing to add ${totalSentences} cards to Anki deck "${selectedDeck}"...`);
+
              let successCount = 0;
              let failureCount = 0;
              let skippedCount = 0; // For potential duplicates
 
              for (let i = 0; i < totalSentences; i++) {
-                 const sentenceText = sentences[i];
-                 const sentenceNumber = i + 1;
+                 const sentenceText = currentSentences[i]; // Use the potentially edited sentence
+                 // Skip empty sentences that might result from edits/deletions
+                 if (!sentenceText || sentenceText.trim().length === 0) {
+                    logStatus(`Skipping empty sentence at index ${i+1}.`, 'info');
+                    skippedCount++;
+                    continue;
+                 }
+
+                 const sentenceNumber = i + 1; // Renumber based on the final list
 
                  const noteData = {
                      "Sentence": sentenceText,
@@ -542,7 +681,7 @@
                      "Book Title": bookTitle,
                      "Chapter": chapter,
                      "Sentence Number": sentenceNumber.toString(),
-                     "Total Sentences": totalSentences.toString(),
+                     "Total Sentences": totalSentences.toString(), // Total is the final count
                      "Source URL": sourceUrl,
                      "Audio": "" // Empty for V1
                  };
@@ -554,36 +693,34 @@
                  if (noteId !== null) {
                      successCount++;
                  } else {
-                     // Check if it might be a duplicate (addNote returns null in this case with allowDuplicate:false)
-                     // A more robust check would involve searching for the card first, but this is simpler for V1
-                     if (await ankiConnectRequest('getNoteInfo', { noteId: null }) === null) { // Simple check if addNote returned null because of duplication
-                        skippedCount++;
-                     } else {
-                        failureCount++;
-                     }
+                     // Simple check for duplicates (addNote returns null)
+                     // A more robust check is complex client-side
+                     skippedCount++; // Assume null means duplicate/skipped for simplicity here
+                     // failureCount++; // Uncomment if null should always be treated as failure
                  }
 
-                 // Optional: Add a small delay to avoid overwhelming AnkiConnect/Anki, especially for large numbers of cards
-                 // await new Promise(resolve => setTimeout(resolve, 50)); // 50ms delay
+                 // Optional delay
+                 // await new Promise(resolve => setTimeout(resolve, 50));
              }
 
-             // --- 5. Final Status Update ---
+             // --- 4. Final Status Update ---
              logStatus('--------------------', 'info');
              if (failureCount === 0) {
-                 logStatus(`Processing Complete! Successfully added ${successCount} cards. Skipped ${skippedCount} potential duplicates.`, 'success');
+                 logStatus(`Processing Complete! Successfully added ${successCount} cards. Skipped ${skippedCount} sentences (duplicates/empty).`, 'success');
              } else {
                  logStatus(`Processing Finished. Added: ${successCount}, Failed: ${failureCount}, Skipped: ${skippedCount}. Check logs for details.`, 'error');
              }
-             setLoadingState(false);
+             setLoadingState(false, addCardsButton, addCardsSpinner);
 
-             // Optional: Clear the text area after successful processing
-             // sourceTextArea.value = '';
+             // Optionally hide the edit container again after adding
+             // editSentencesContainer.classList.add('hidden');
+             // currentSentences = [];
         }
 
 
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', async () => {
-            // Load API key from local storage
+            // Load API key
             const savedApiKey = localStorage.getItem('geminiApiKey');
             if (savedApiKey) {
                 apiKeyInput.value = savedApiKey;
@@ -591,21 +728,24 @@
             } else {
                 logStatus('Enter your Google Gemini API Key.');
             }
-
-            // Save API key whenever it changes
             apiKeyInput.addEventListener('input', () => {
                 localStorage.setItem('geminiApiKey', apiKeyInput.value);
             });
 
-            // Initial AnkiConnect check and deck loading
+            // Initial Anki check and deck loading
             if (await checkAnkiConnection()) {
                 await loadAnkiDecks();
             } else {
                 deckSelect.innerHTML = '<option value="" disabled selected>Connect to Anki first</option>';
             }
 
-            // Attach event listener to the button
-            processButton.addEventListener('click', handleProcessButtonClick);
+            // Start polling AnkiConnect status
+            if (ankiConnectPollTimer) clearInterval(ankiConnectPollTimer); // Clear existing timer if any
+            ankiConnectPollTimer = setInterval(pollAnkiConnection, ANKI_CONNECT_POLL_INTERVAL);
+
+            // Attach event listeners
+            segmentButton.addEventListener('click', handleSegmentTextClick);
+            addCardsButton.addEventListener('click', handleAddCardsToAnkiClick);
 
             logStatus('Anki Sentence Miner initialized.');
         });
