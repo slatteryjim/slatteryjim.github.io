@@ -85,8 +85,8 @@
 
         const models = [
             "gemini-2.5-pro-exp-03-25",
-            "gemini-2.5-flash-preview-04-17-no-thinking",
             "gemini-2.5-flash-preview-04-17-thinking",
+            "gemini-2.5-flash-preview-04-17-no-thinking",
             "gemini-2.0-flash",
             "gemini-2.0-flash-lite"
         ];
@@ -311,7 +311,7 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
 
                 console.log(`Stats for ${model}: ${stats}`);
 
-                return { model: modelConfig.name, explanation, stats };
+                return { model, explanation, stats };
             };
 
             return (
