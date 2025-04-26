@@ -85,10 +85,42 @@
 
         const models = [
             "gemini-2.5-pro-exp-03-25",
-            "gemini-2.0-pro-exp-02-05",
+            "gemini-2.5-flash-preview-04-17-no-thinking",
+            "gemini-2.5-flash-preview-04-17-thinking",
             "gemini-2.0-flash",
             "gemini-2.0-flash-lite"
-        ]
+        ];
+
+        const defaultSystemPrompt = `I'd like you to be a language sentence explainer.
+
+The user was reading some text, and they came across a sentence that they didn't understand.
+Maybe they didn't understand one word or phrase, or maybe they knew each word, but didn't understand what the sentence as a whole meant.
+
+They will provide a snippet for context, and then the particular sentence to focus on.
+
+Pretend you are a language mentor and fluent speaker of their target language, and you should only reply in that language.
+When a user provides a sentence, the GPT will offer the following types of explanations, always responding in the target language of the sentence:
+
+- **Segmented Sentence Breakdown**: A breakdown of the sentence where each phrase is separated by a newline.
+Prefer to group words into phrases for brevity, for example ("读" and "些") should be grouped into "读些", and ("更", "有趣", "的") should be grouped into "更有趣的".
+After each word/phrase of the sentence, include in parentheses its accurate pronunciation (e.g., pinyin), and an explanatory alternative in the target language (but DO NOT provide pinyin for that).
+An [English gloss] should be provided as well in square brackets.
+
+Crucially: Your response must consist only of the segmented sentence breakdown. Do not include any introductory remarks, greetings, explanations of the process, or concluding sentences. Start the response directly with the first segment breakdown.
+
+Here is an example response for the input sentence "国央企如此热切拥抱大模型，或与一道新政有关。":
+"""
+- 国央企 (guó yāng qǐ) - 国家和中央的企业 [state-owned enterprises]
+- 如此 (rúcǐ) - 这么地 [so]
+- 热切 (rèqiè) - 非常热情地 [eagerly]
+- 拥抱 (yōngbào) - 接受 [embrace]
+- 大模型 (dà móxíng) - 大型的AI模型 [large models]
+- 或 (huò) - 可能 [perhaps]
+- 与 (yǔ) - 和 [with]
+- 一道 (yídào) - 一个 [a]
+- 新政 (xīnzhèng) - 新的政策 [new policy]
+- 有关 (yǒuguān) - 有关系 [related to]
+"""`;
 
         const SentenceExplainer = () => {
             // State variables
@@ -99,6 +131,8 @@
             const [error, setError] = useState(null);
             const [showApiKey, setShowApiKey] = useState(false);
             const [isReady, setIsReady] = useState(false);
+            const [systemPromptText, setSystemPromptText] = useState(defaultSystemPrompt);
+            const [showSystemPrompt, setShowSystemPrompt] = useState(false);
 
             // Load API key and sentence, then set isReady
             useEffect(() => {
@@ -209,42 +243,14 @@
                 let endTime;
                 let ttfb;
 
-                // Prepare the system prompt
-                const systemPrompt = `I'd like you to be a language sentence explainer.
+                // Determine the actual model ID for the API endpoint
+                const modelId = model.replace(/-no-thinking|-thinking/, '');
 
-The user was reading some text, and they came across a sentence that they didn't understand.
-Maybe they didn't understand one word or phrase, or maybe they knew each word, but didn't understand what the sentence as a whole meant.
-
-They will provide a snippet for context, and then the particular sentence to focus on.
-
-Pretend you are a language mentor and fluent speaker of their target language, and you should only reply in that language.
-When a user provides a sentence, the GPT will offer the following types of explanations, always responding in the target language of the sentence:
-
-- **Segmented Sentence Breakdown**: A breakdown of the sentence where each phrase is separated by a newline.
-Prefer to group words into phrases for brevity, for example ("读" and "些") should be grouped into "读些", and ("更", "有趣", "的") should be grouped into "更有趣的".
-After each word/phrase of the sentence, include in parentheses its accurate pronunciation (e.g., pinyin), and an explanatory alternative in the target language (but DO NOT provide pinyin for that).
-An [English gloss] should be provided as well in square brackets.
-
-Crucially: Your response must consist only of the segmented sentence breakdown. Do not include any introductory remarks, greetings, explanations of the process, or concluding sentences. Start the response directly with the first segment breakdown.
-
-Here is an example response for the input sentence "国央企如此热切拥抱大模型，或与一道新政有关。":
-"""
-- 国央企 (guó yāng qǐ) - 国家和中央的企业 [state-owned enterprises]
-- 如此 (rúcǐ) - 这么地 [so]
-- 热切 (rèqiè) - 非常热情地 [eagerly]
-- 拥抱 (yōngbào) - 接受 [embrace]
-- 大模型 (dà móxíng) - 大型的AI模型 [large models]
-- 或 (huò) - 可能 [perhaps]
-- 与 (yǔ) - 和 [with]
-- 一道 (yídào) - 一个 [a]
-- 新政 (xīnzhèng) - 新的政策 [new policy]
-- 有关 (yǒuguān) - 有关系 [related to]
-"""`;
-
-                const userPrompt = currentSentence;
+                // Prepare the system prompt from state
+                const systemPrompt = systemPromptText;
 
                 // Make the API call
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -252,13 +258,21 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
                     body: JSON.stringify({
                         contents: [{
                                 role: "user",
-                                parts: [{ text: userPrompt }]
+                                parts: [{ text: currentSentence }]
                             }
                         ],
                         systemInstruction: {
                             role: "user",
                             parts: [{text: systemPrompt}]
                         },
+                        // Add thinking budget config for the no-thinking variant
+                        ...(model.endsWith('-no-thinking') && {
+                            generationConfig: {
+                                thinkingConfig: {
+                                    thinkingBudget: 0
+                                }
+                            }
+                        })
                     })
                 });
 
@@ -267,7 +281,7 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
                 const firstChunk = await reader.read();
                 ttfb = performance.now() - startTime;
                 const decoder = new TextDecoder();
-                let responseText = decoder.decode(firstChunk.value || new Uint8Array, { stream: true });
+                let responseText = decoder.decode(firstChunk.value || new Uint8Array(), { stream: true });
 
                 while (!firstChunk.done) {
                     const nextChunk = await reader.read();
@@ -286,17 +300,10 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
 
                 endTime = performance.now();
 
-                // Extract explanation and stats
-                let explanation = null;
-                if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0) {
-                  explanation = data.candidates[0].content.parts[0].text;
-                } else {
-                  explanation = "No explanation generated.";
-                }
+                const candidates = data.candidates || [];
+                const explanation = (candidates[0]?.content?.parts[0]?.text) || 'No explanation generated.';
 
-                const promptTokenCount = data.usageMetadata.promptTokenCount;
-                const candidatesTokenCount = data.usageMetadata.candidatesTokenCount;
-                const totalTokenCount = data.usageMetadata.totalTokenCount;
+                const { promptTokenCount, candidatesTokenCount, totalTokenCount } = data.usageMetadata;
                 const totalDuration = endTime - startTime;
                 const tokensPerSecond = totalTokenCount / (totalDuration / 1000);
 
@@ -304,7 +311,7 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
 
                 console.log(`Stats for ${model}: ${stats}`);
 
-                return { model, explanation, stats };
+                return { model: modelConfig.name, explanation, stats };
             };
 
             return (
@@ -316,6 +323,19 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
                         Enter the sentence you want to understand and click "Explain Sentence". The tool will send a prompt to Gemini API to generate a detailed breakdown.<br />
                         The returned explanation is displayed below.
                     </p>
+                    {/* ▶/▼ System Prompt toggle */}
+                    <span
+                        style={{ cursor: 'pointer', color: 'blue' }}
+                        onClick={() => setShowSystemPrompt(!showSystemPrompt)}
+                    >{showSystemPrompt ? '▼' : '▶'} System Prompt</span>
+                    {showSystemPrompt && (
+                        <textarea
+                            value={systemPrompt}
+                            onChange={(e) => setSystemPrompt(e.target.value)}
+                            style={{ marginTop: '10px', height: '200px' }}
+                        />
+                    )}
+
                     <form onSubmit={handleSubmit}>
                         <label>
                             Gemini API Key:
