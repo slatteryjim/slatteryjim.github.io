@@ -324,14 +324,14 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
                         The returned explanation is displayed below.
                     </p>
                     {/* ▶/▼ System Prompt toggle */}
-                    <span
+                    <div
                         style={{ cursor: 'pointer', color: 'blue' }}
                         onClick={() => setShowSystemPrompt(!showSystemPrompt)}
-                    >{showSystemPrompt ? '▼' : '▶'} System Prompt</span>
+                    >{showSystemPrompt ? '▼' : '▶'} System Prompt</div>
                     {showSystemPrompt && (
                         <textarea
-                            value={systemPrompt}
-                            onChange={(e) => setSystemPrompt(e.target.value)}
+                            value={systemPromptText}
+                            onChange={(e) => setSystemPromptText(e.target.value)}
                             style={{ marginTop: '10px', height: '200px' }}
                         />
                     )}
