@@ -485,7 +485,7 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
         setLoading(true);
 
         try {
-          const { explanation } = await callGemini(apiKey, sentence, "gemini-2.0-flash-exp");
+          const { explanation } = await callGemini(apiKey, sentence, "gemini-2.0-flash");
           await updateNoteWithExplanation(noteId, explanation);
           // Update React state with the raw explanation
           setNotesInfo((prev) =>
@@ -549,7 +549,7 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
           const startTime = performance.now();
 
           try {
-            const { explanation, stats } = await callGemini(apiKey, sentence, "gemini-2.0-flash-exp");
+            const { explanation, stats } = await callGemini(apiKey, sentence, "gemini-2.0-flash");
             setAccPromptTokens((prev) => prev + stats.promptTokenCount);
             setAccCandidateTokens((prev) => prev + stats.candidatesTokenCount);
             setAccTotalTokens((prev) => prev + stats.totalTokenCount);
