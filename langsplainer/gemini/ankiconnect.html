@@ -137,20 +137,8 @@
     /************************************************************
      * Gemini API Helpers
      ************************************************************/
-    async function callGemini(apiKey, sentence, model="gemini-2.0-flash") {
-      // Parameters for exponential backoff:
-      const maxAttempts = 1000;        // Total times we’ll retry before giving up
-      const initialDelay = 5000;       // Start with 5 seconds
-      const maxDelay = 5 * 60 * 1000;  // Cap at 5 minutes
-
-      let attempt = 0;
-      let delay = initialDelay;
-
-      while (true) {
-        attempt++;
-
-        // Define your system + user prompts here
-      const systemPrompt = `I'd like you to be a language sentence explainer.
+    // Default system prompt (same as before)
+    const defaultSystemPrompt = `I'd like you to be a language sentence explainer.
 
 The user was reading some text, and they came across a sentence that they didn't understand.
 Maybe they didn't understand one word or phrase, or maybe they knew each word, but didn't understand what the sentence as a whole meant.
@@ -180,6 +168,18 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
 - 新政 (xīnzhèng) - 新的政策 [new policy]
 - 有关 (yǒuguān) - 有关系 [related to]
 """`;
+
+    async function callGemini(apiKey, sentence, model="gemini-2.0-flash", systemPrompt=defaultSystemPrompt) {
+      // Parameters for exponential backoff:
+      const maxAttempts = 1000;        // Total times we’ll retry before giving up
+      const initialDelay = 5000;       // Start with 5 seconds
+      const maxDelay = 5 * 60 * 1000;  // Cap at 5 minutes
+
+      let attempt = 0;
+      let delay = initialDelay;
+
+      while (true) {
+        attempt++;
 
       const userPrompt = sentence;
       const startTime = performance.now();
@@ -348,6 +348,9 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
       // We’ll compute our own time left from average times
       const [timeEstimate, setTimeEstimate] = useState(0);
 
+        const [showSystemPrompt, setShowSystemPrompt] = useState(false);
+        const [systemPrompt, setSystemPrompt] = useState(defaultSystemPrompt);
+
       useEffect(() => {
         // Load any saved API key from localStorage
         const savedKey = localStorage.getItem("gemini_api_key");
@@ -472,7 +475,7 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
         return explanationWithLineBreaks; // in case we need it
       }
 
-      // Individual generation (still updates local state as before)
+      // Individual generation (pass systemPrompt)
       const handleGenerateBreakdown = async (noteId, sentence) => {
         if (!apiKey) {
           alert("Please provide your Gemini API key first.");
@@ -485,7 +488,7 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
         setLoading(true);
 
         try {
-          const { explanation } = await callGemini(apiKey, sentence, "gemini-2.0-flash");
+          const { explanation } = await callGemini(apiKey, sentence, "gemini-2.0-flash", systemPrompt);
           await updateNoteWithExplanation(noteId, explanation);
           // Update React state with the raw explanation
           setNotesInfo((prev) =>
@@ -549,7 +552,7 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
           const startTime = performance.now();
 
           try {
-            const { explanation, stats } = await callGemini(apiKey, sentence, "gemini-2.0-flash");
+            const { explanation, stats } = await callGemini(apiKey, sentence, "gemini-2.0-flash", systemPrompt);
             setAccPromptTokens((prev) => prev + stats.promptTokenCount);
             setAccCandidateTokens((prev) => prev + stats.candidatesTokenCount);
             setAccTotalTokens((prev) => prev + stats.totalTokenCount);
@@ -636,6 +639,22 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
             rather than calling for each note individually.  
             You can generate breakdowns one-by-one, or do a bulk operation for all filtered notes that have a “Sentence” value.
           </p>
+
+          {/* System Prompt Toggle and Textarea */}
+          <div
+            style={{ cursor: 'pointer', color: 'blue', marginBottom: '10px' }}
+            onClick={() => setShowSystemPrompt(!showSystemPrompt)}
+          >
+            {showSystemPrompt ? '▼ Hide' : '▶ Show'} System Prompt
+          </div>
+          {showSystemPrompt && (
+            <textarea
+              value={systemPrompt}
+              onChange={e => setSystemPrompt(e.target.value)}
+              style={{ width: '100%', height: '200px', marginBottom: '10px' }}
+              placeholder="Enter the system prompt for Gemini"
+            />
+          )}
 
           {/* Gemini API Key controls */}
           <div>
