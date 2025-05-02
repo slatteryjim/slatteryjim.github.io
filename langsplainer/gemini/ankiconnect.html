@@ -553,8 +553,15 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
         // We'll hold the updated notes in a local array (avoid re-render each time)
         const updatedNotesArray = [...notesInfo];
 
-        for (let i = 0; i < notesToProcess.length; i++) {
-          const note = notesToProcess[i];
+        // --- Parallelization logic starts here ---
+        const CONCURRENCY = 5; // You can tune this (5-10 is usually safe for Gemini)
+        let currentIndex = 0;
+        let processedCount = 0;
+        let errorCount = 0;
+        let running = true;
+
+        // Helper to process a single note
+        const processNote = async (note) => {
           const noteId = note.noteId;
           const sentence = note.fields?.Sentence?.value || "";
           const startTime = performance.now();
@@ -586,20 +593,44 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
             // Log and continue
             console.error("Error while generating or updating note", noteId, err);
             setError(err.message);
+            errorCount++;
           }
 
           // Update processed count in state so the progress bar moves
-          setBulkProcessedCount((prev) => prev + 1);
+          processedCount++;
+          setBulkProcessedCount(processedCount);
 
           // stable time estimate with average
           const endTime = performance.now();
           const timeSoFar = (endTime - bulkStartTime) / 1000;
           // average time per note
-          const avgTimePerNote = timeSoFar / (i + 1);
-          const notesLeft = notesToProcess.length - (i + 1);
+          const avgTimePerNote = timeSoFar / processedCount;
+          const notesLeft = notesToProcess.length - processedCount;
           const timeLeft = avgTimePerNote * notesLeft;
           setTimeEstimate(timeLeft);
+        };
+
+        // Promise pool runner
+        async function promisePool() {
+          const pool = [];
+          for (let i = 0; i < CONCURRENCY; i++) {
+            pool.push(
+              (async function worker() {
+                while (true) {
+                  let idx;
+                  // Atomically get the next index
+                  if (currentIndex >= notesToProcess.length) break;
+                  idx = currentIndex++;
+                  const note = notesToProcess[idx];
+                  await processNote(note);
+                }
+              })()
+            );
+          }
+          await Promise.all(pool);
         }
+
+        await promisePool();
 
         // Finally do one big update of the entire notes array
         setNotesInfo(updatedNotesArray);
