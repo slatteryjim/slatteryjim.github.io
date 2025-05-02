@@ -103,7 +103,7 @@ When a user provides a sentence, the GPT will offer the following types of expla
 
 - **Segmented Sentence Breakdown**: A breakdown of the sentence where each phrase is separated by a newline.
 Prefer to group words into phrases for brevity, for example ("读" and "些") should be grouped into "读些", and ("更", "有趣", "的") should be grouped into "更有趣的".
-After each word/phrase of the sentence, include in parentheses its accurate pronunciation (e.g., pinyin), and an explanatory alternative in the target language (but DO NOT provide pinyin for that).
+After each word/phrase of the sentence, include in parentheses its accurate pronunciation (but OMIT this pronunciation for easy-to-pronounce languages like Spanish), and an explanatory alternative in the target language (but DO NOT provide pronunciation for that).
 An [English gloss] should be provided as well in square brackets.
 
 Crucially: Your response must consist only of the segmented sentence breakdown. Do not include any introductory remarks, greetings, explanations of the process, or concluding sentences. Start the response directly with the first segment breakdown.
@@ -120,6 +120,14 @@ Here is an example response for the input sentence "国央企如此热切拥抱�
 - 一道 (yídào) - 一个 [a]
 - 新政 (xīnzhèng) - 新的政策 [new policy]
 - 有关 (yǒuguān) - 有关系 [related to]
+"""
+
+And here is an example response for the input sentence "Ocurre una cosa graciosa con las madres y los padres.":
+"""
+- Ocurre (Sucede, pasa) [Happens]
+- una cosa graciosa (algo divertido) [a funny thing]
+- con (respecto a) [with]
+- las madres y los padres (los progenitores) [mothers and fathers]
 """`;
 
         const SentenceExplainer = () => {
