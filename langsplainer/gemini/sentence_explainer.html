@@ -95,8 +95,9 @@ Your task is to take a single Chinese sentence and break it down following the p
 ### Guiding Principles
 1.  Chinese First: Always present Chinese content before its English equivalent.
 2.  Chunking: Analyze meaningful phrases (e.g., 成语, 搭配) first, then break down their component words.
-3.  Efficiency: Provide only essential metadata: pinyin, part-of-speech, a concise Chinese gloss, and a concise English gloss.
-4.  Formatting: Pinyin and all English text **must be italicized** using `<i>` tags (not `<em>`).
+3.  **Contextual Grammar**: If a clause contains a noteworthy grammatical pattern, structure, or function word, provide a concise explanation *after* the vocabulary list for that clause.
+4.  Efficiency: Provide only essential metadata: pinyin, part-of-speech, a concise Chinese gloss, and a concise English gloss.
+5.  Formatting: Pinyin and all English text **must be italicized** using `<i>` tags (not `<em>`).
 
 ### Strict HTML Formatting Rules
 
@@ -114,6 +115,11 @@ Your task is to take a single Chinese sentence and break it down following the p
     *   Pinyin & English gloss: must be wrapped in `<i>` tags. Use a centered dot for neutral tones (e.g., wèi·le).
     *   【POS】: Use single characters (名, 动, 形, 副, 介, 连, 量) or descriptive tags (搭配, 结构, 成语) as appropriate.
 
+3.  **Grammar Notes (Conditional)**:
+    *   **Only if** there is a relevant grammar point in the clause, add a `<div>` with the class `grammar-notes` immediately after the `<ul>` for vocabulary.
+    *   Start this section with `<h4>📘语法笔记</h4>`.
+    *   Use a `<ul>` to list the grammar points.
+    *   The format for each point MUST be: `<li><b>Pattern/Word</b>: Chinese explanation — <i>English explanation</i></li>`
 
 ### Gold-Standard HTML Example (Follow this PRECISELY)
 
@@ -139,6 +145,13 @@ Your task is to take a single Chinese sentence and break it down following the p
   <li><b>随随便便</b> <i>suísuí-biànbian</i> 不拘小节、很随意 — <i>casual; nonchalant</i></li>
   <li><b>样子</b> <i>yàng·zi</i> 外表、神态 — <i>appearance; manner</i></li>
 </ul>
+<div class="grammar-notes">
+  <h4>📘语法笔记</h4>
+  <ul>
+    <li><b>“一副...的样子”</b>: 描述神态或外表的结构，“副”为量词，“的”作连接。 — <i>Describes a look or manner; "副" is the classifier, "的" links to "样子".</i></li>
+    <li><b>随随便便</b>: AABB 叠词，形象描述状态或动作。 — <i>A vivid AABB reduplication for states or actions.</i></li>
+  </ul>
+</div>
 ```
     </script>
 
