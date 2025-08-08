@@ -75,60 +75,169 @@
             font-size: 0.8em;
             cursor: pointer;
         }
+        /* HTML output styling */
+        .html-output h3 { margin: 0.6em 0 0.3em; }
+        .html-output h4 { margin: 0.8em 0 0.4em; }
+        .html-output ul { margin: 0.25em 0 0.75em 1.25em; }
+        .html-output li { margin: 0.2em 0; }
+        .html-output ruby { ruby-position: over; font-size: 1.05em; }
+        .html-output rt { font-size: 0.6em; color: #666; }
+        .html-output .pos { color: #555; font-weight: 600; }
+        .html-output .translation { margin: 0.5em 0 1em; }
+        .html-output .full-translation blockquote { margin: 0.5em 0; padding-left: 1em; border-left: 3px solid #ddd; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
+    <script id="defaultSystemPrompt" type="text/plain">
+You are an expert bilingual teaching assistant specializing in Chinese. Your primary goal is to create "Chinese-first, maximum-value" sentence breakdowns for language learners, formatted in clean HTML with ruby annotations for pinyin.
+
+Your task is to take a single Chinese sentence and break it down following the precise format and principles outlined below. Pack the most helpful information into the smallest space, encouraging the learner to stay in Chinese as long as possible.
+
+### Guiding Principles
+1.  **Chinese First:** Always present Chinese content before its English equivalent.
+2.  **Chunking:** Analyze meaningful phrases (e.g., 成语, 搭配) first, then break down their component words.
+3.  **Efficiency:** Provide only essential metadata: pinyin, part-of-speech, a concise Chinese gloss, and a concise English gloss.
+4.  **Formatting:** Pinyin and all English text (glosses, translations) **must be italicized** using `<em>` tags.
+
+### Strict HTML Formatting Rules
+
+1.  **Clause Headings with Ruby Pinyin:**
+    *   Begin each clause with an `<h3>` tag.
+    *   The format must be: `<h3><number>&emsp;<segmented Chinese clause with ruby pinyin></h3>`
+    *   **Crucially, each space-separated Chinese word/phrase in the clause must be wrapped in `<ruby>` tags, with the pinyin in an `<rt>` tag.** This places the pinyin directly above the characters.
+    *   Example: `<h3>1&emsp;<ruby><rb>为了</rb><rt>wèi·le</rt></ruby> <ruby><rb>顾全面子</rb><rt>gùquán miàn·zi</rt></ruby>，</h3>`
+
+2.  **Vocabulary/Phrase List:**
+    *   Use a `<ul>` for the list of vocabulary and phrases.
+    *   Each item must be in a `<li>` tag.
+    *   The format MUST be: `<strong>Word/Phrase</strong> <em>pinyin</em> <span class="pos">【POS】</span> Chinese gloss/synonym — <em>English gloss</em>`
+    *   **Word/Phrase:** Must be wrapped in `<strong>` tags.
+    *   **Pinyin & English Gloss:** Must be wrapped in `<em>` tags. Use a centered dot for neutral tones (e.g., *wèi·le*).
+    *   **【POS】:** Wrap the part-of-speech tag in `<span class="pos">`. Use single characters (名, 动, 形, 副, 介, 连, 量) or descriptive tags (搭配, 结构, 成语) as appropriate.
+
+3.  **Clause Micro-Translation:**
+    *   End each clause section with a paragraph tag: `<p class="translation">`.
+    *   The format MUST be: `<p class="translation">⇢ <strong><em>“English micro-translation”</em></strong></p>`
+
+4.  **Full Sentence Translation:**
+    *   At the very end, provide a full translation block within a `<div>` with the class `full-translation`.
+    *   The header should be a `<h4>`.
+    *   The original sentence and its translation should be inside a `<blockquote>`.
+    *   The final English translation must be italicized with `<em>`.
+    *   The structure MUST be:
+        ```html
+        <div class="full-translation">
+          <h4>📜 一句话总译 Full-sentence translation</h4>
+          <blockquote>
+            <p class="chinese-sentence">[Original Chinese sentence]</p>
+            <p><em>[Full English translation]</em></p>
+          </blockquote>
+        </div>
+        ```
+
+### Gold-Standard HTML Example (Follow this PRECISELY)
+
+**Input Sentence:** 为了顾全面子，他装出一副随随便便的样子，好让他的伙计以为他是为了好玩存心整天戴着他那顶帽子的，就像电影里的匪徒那样。
+
+**Required HTML Output:**
+
+```html
+<h3>1&emsp;<ruby><rb>为了</rb><rt>wèi·le</rt></ruby> <ruby><rb>顾全面子</rb><rt>gùquán miàn·zi</rt></ruby>，</h3>
+<ul>
+  <li><strong>为了</strong> <em>wèi·le</em> <span class="pos">【介】</span> 为了…的目的 — <em>in order to; for the sake of</em></li>
+  <li><strong>顾全面子</strong> <em>gùquán miàn·zi</em> <span class="pos">【搭配】</span> 保全面子 — <em>to save face</em>
+    <ul>
+      <li><strong>顾全</strong> <em>gùquán</em> <span class="pos">【动】</span> 保全、照顾 — <em>to preserve</em></li>
+      <li><strong>面子</strong> <em>miàn·zi</em> <span class="pos">【名】</span> 体面、脸面 — <em>face; reputation</em></li>
+    </ul>
+  </li>
+</ul>
+<p class="translation">⇢ <strong><em>“In order to save face,”</em></strong></p>
+
+<h3>2&emsp;<ruby><rb>他</rb><rt>tā</rt></ruby> <ruby><rb>装出</rb><rt>zhuāngchū</rt></ruby> <ruby><rb>一副</rb><rt>yī fù</rt></ruby> <ruby><rb>随随便便</rb><rt>suísuí-biànbian</rt></ruby> <ruby><rb>的</rb><rt>de</rt></ruby> <ruby><rb>样子</rb><rt>yàng·zi</rt></ruby>，</h3>
+<ul>
+  <li><strong>装出</strong> <em>zhuāngchū</em> <span class="pos">【动】</span> 假装表现 — <em>to feign, put on</em></li>
+  <li><strong>一副</strong> <em>yī fù</em> <span class="pos">【量】</span> （表神态的量词） — <em>classifier for looks</em></li>
+  <li><strong>随随便便</strong> <em>suísuí-biànbian</em> <span class="pos">【形】</span> 不拘小节、很随意 — <em>casual; nonchalant</em></li>
+  <li><strong>样子</strong> <em>yàng·zi</em> <span class="pos">【名】</span> 外表、神态 — <em>appearance; manner</em></li>
+</ul>
+<p class="translation">⇢ <strong><em>“he put on a casual, nonchalant air,”</em></strong></p>
+
+<h3>3&emsp;<ruby><rb>好让</rb><rt>hǎo-ràng</rt></ruby> <ruby><rb>他</rb><rt>tā</rt></ruby> <ruby><rb>的</rb><rt>de</rt></ruby> <ruby><rb>伙计</rb><rt>huǒ·ji</rt></ruby> <ruby><rb>以为</rb><rt>yǐwéi</rt></ruby></h3>
+<ul>
+  <li><strong>好让</strong> <em>hǎo-ràng</em> <span class="pos">【连】</span> 以便、为了使 — <em>so that</em></li>
+  <li><strong>伙计</strong> <em>huǒ·ji</em> <span class="pos">【名】</span> 同伴、朋友（口语、稍旧） — <em>buddy; mate</em></li>
+  <li><strong>以为</strong> <em>yǐwéi</em> <span class="pos">【动】</span> 认为、误以为 — <em>to assume (often wrongly)</em></li>
+</ul>
+<p class="translation">⇢ <strong><em>“so that his buddies would assume”</em></strong></p>
+
+<h3>4&emsp;<ruby><rb>他</rb><rt>tā</rt></ruby> <ruby><rb>是</rb><rt>shì</rt></ruby> <ruby><rb>为了好玩</rb><rt>wèi·le hǎowán</rt></ruby> <ruby><rb>存心</rb><rt>cúnxīn</rt></ruby> <ruby><rb>整天</rb><rt>zhěngtiān</rt></ruby> <ruby><rb>戴着</rb><rt>dài·zhe</rt></ruby> <ruby><rb>他</rb><rt>tā</rt></ruby> <ruby><rb>那</rb><rt>nà</rt></ruby> <ruby><rb>顶</rb><rt>dǐng</rt></ruby> <ruby><rb>帽子</rb><rt>mào·zi</rt></ruby> <ruby><rb>的</rb><rt>de</rt></ruby>，</h3>
+<ul>
+  <li><strong>为了好玩</strong> <em>wèi·le hǎowán</em> <span class="pos">【搭配】</span> 为了有趣 — <em>for fun</em></li>
+  <li><strong>存心</strong> <em>cúnxīn</em> <span class="pos">【副】</span> 故意、有意 — <em>deliberately</em></li>
+  <li><strong>整天</strong> <em>zhěngtiān</em> <span class="pos">【副】</span> 一天到晚 — <em>all day</em></li>
+  <li><strong>戴着</strong> <em>dài·zhe</em> <span class="pos">【动+着】</span> 头上戴着（持续） — <em>wearing (durative)</em></li>
+  <li><strong>顶</strong> <em>dǐng</em> <span class="pos">【量】</span> 帽子的量词 — <em>MW for hats</em></li>
+  <li><strong>帽子</strong> <em>mào·zi</em> <span class="pos">【名】</span> 帽子 — <em>hat</em></li>
+</ul>
+<p class="translation">⇢ <strong><em>“he kept that hat on all day purely for fun,”</em></strong></p>
+
+<h3>5&emsp;<ruby><rb>就像</rb><rt>jiùxiàng</rt></ruby> <ruby><rb>电影里的</rb><rt>diànyǐng lǐ de</rt></ruby> <ruby><rb>匪徒</rb><rt>fěitú</rt></ruby> <ruby><rb>那样</rb><rt>nàyàng</rt></ruby>。</h3>
+<ul>
+  <li><strong>就像 … 那样</strong> <em>jiùxiàng … nàyàng</em> <span class="pos">【结构】</span> 如同… — <em>just like …</em></li>
+  <li><strong>电影里的</strong> <em>diànyǐng lǐ de</em> <span class="pos">【结构】</span> 在电影中的 — <em>in the movies</em></li>
+  <li><strong>匪徒</strong> <em>fěitú</em> <span class="pos">【名】</span> 土匪、强盗 — <em>bandit (old-style)</em></li>
+</ul>
+<p class="translation">⇢ <strong><em>“just like the bandits in the movies.”</em></strong></p>
+
+<div class="full-translation">
+  <h4>📜 一句话总译 Full-sentence translation</h4>
+  <blockquote>
+    <p class="chinese-sentence">为了顾全面子，他装出一副随随便便的样子，好让他的伙计以为他是为了好玩存心整天戴着他那顶帽子的，就像电影里的匪徒那样。</p>
+    <p><em>In order to save face, he affected a laid-back look so his buddies would think he wore that hat all day just for fun—like the bandits in the movies.</em></p>
+  </blockquote>
+</div>
+```
+    </script>
+
     <script type="text/babel" data-type="module" data-presets="env,react,typescript">
         const { useState, useEffect, StrictMode } = React;
 
         const models = [
-            "gemini-2.5-pro-exp-03-25",
-            "gemini-2.5-flash-preview-04-17-thinking",
-            "gemini-2.5-flash-preview-04-17-no-thinking",
-            "gemini-2.0-flash",
-            "gemini-2.0-flash-lite"
+            "gemini-2.5-pro",
+            "gemini-2.5-flash-thinking",
+            "gemini-2.5-flash-no-thinking",
+            "gemini-2.5-flash-lite"
         ];
 
-        const defaultSystemPrompt = `I'd like you to be a language sentence explainer.
+        // Strip common code fences like ```html ... ```
+        const stripCodeFences = (s) => {
+            if (!s) return '';
+            let out = s.trim();
+            out = out.replace(/^```(?:html)?\s*/i, '');
+            out = out.replace(/\s*```$/i, '');
+            return out.trim();
+        };
 
-The user was reading some text, and they came across a sentence that they didn't understand.
-Maybe they didn't understand one word or phrase, or maybe they knew each word, but didn't understand what the sentence as a whole meant.
+        // Very light sanitizer to prevent script injection from model output
+        const sanitizeHTML = (html) => {
+            const doc = new DOMParser().parseFromString(html || '', 'text/html');
+            doc.querySelectorAll('script, style, iframe, object, embed, link').forEach(el => el.remove());
+            doc.querySelectorAll('*').forEach(el => {
+                [...el.attributes].forEach(attr => {
+                    const name = attr.name.toLowerCase();
+                    const val = (attr.value || '').trim().toLowerCase();
+                    if (name.startsWith('on')) el.removeAttribute(attr.name);
+                    if ((name === 'href' || name === 'src') && val.startsWith('javascript:')) el.removeAttribute(attr.name);
+                });
+            });
+            return doc.body.innerHTML;
+        };
 
-They will provide a snippet for context, and then the particular sentence to focus on.
-
-Pretend you are a language mentor and fluent speaker of their target language, and you should only reply in that language.
-When a user provides a sentence, the GPT will offer the following types of explanations, always responding in the target language of the sentence:
-
-- **Segmented Sentence Breakdown**: A breakdown of the sentence where each phrase is separated by a newline.
-Prefer to group words into phrases for brevity, for example ("读" and "些") should be grouped into "读些", and ("更", "有趣", "的") should be grouped into "更有趣的".
-After each word/phrase of the sentence, include in parentheses its accurate pronunciation (but OMIT this pronunciation for easy-to-pronounce languages like Spanish), and an explanatory alternative in the target language (but DO NOT provide pronunciation for that).
-An [English gloss] should be provided as well in square brackets.
-
-Crucially: Your response must consist only of the segmented sentence breakdown. Do not include any introductory remarks, greetings, explanations of the process, or concluding sentences. Start the response directly with the first segment breakdown.
-
-Here is an example response for the input sentence "国央企如此热切拥抱大模型，或与一道新政有关。":
-"""
-- 国央企 (guó yāng qǐ) - 国家和中央的企业 [state-owned enterprises]
-- 如此 (rúcǐ) - 这么地 [so]
-- 热切 (rèqiè) - 非常热情地 [eagerly]
-- 拥抱 (yōngbào) - 接受 [embrace]
-- 大模型 (dà móxíng) - 大型的AI模型 [large models]
-- 或 (huò) - 可能 [perhaps]
-- 与 (yǔ) - 和 [with]
-- 一道 (yídào) - 一个 [a]
-- 新政 (xīnzhèng) - 新的政策 [new policy]
-- 有关 (yǒuguān) - 有关系 [related to]
-"""
-
-And here is an example response for the input sentence "Ocurre una cosa graciosa con las madres y los padres.":
-"""
-- Ocurre (Sucede, pasa) [Happens]
-- una cosa graciosa (algo divertido) [a funny thing]
-- con (respecto a) [with]
-- las madres y los padres (los progenitores) [mothers and fathers]
-"""`;
+        const promptEl = document.getElementById('defaultSystemPrompt');
+        const defaultSystemPrompt = (promptEl ? promptEl.textContent : '').trim();
 
         const SentenceExplainer = () => {
             // State variables
@@ -270,7 +379,7 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
                             }
                         ],
                         systemInstruction: {
-                            role: "user",
+                            role: "system",
                             parts: [{text: systemPrompt}]
                         },
                         // Add thinking budget config for the no-thinking variant
@@ -309,7 +418,8 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
                 endTime = performance.now();
 
                 const candidates = data.candidates || [];
-                const explanation = (candidates[0]?.content?.parts[0]?.text) || 'No explanation generated.';
+                const parts = candidates[0]?.content?.parts || [];
+                const explanation = parts.map(p => p.text || '').join('') || 'No explanation generated.';
 
                 const { promptTokenCount, candidatesTokenCount, totalTokenCount } = data.usageMetadata;
                 const totalDuration = endTime - startTime;
@@ -388,7 +498,12 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
                                 <h2>{model}</h2>
                                 {results[model] && results[model].explanation && (
                                     <div className="explanation">
-                                        <pre>{results[model].explanation}</pre>
+                                        <div
+                                            className="html-output"
+                                            dangerouslySetInnerHTML={{
+                                                __html: sanitizeHTML(stripCodeFences(results[model].explanation))
+                                            }}
+                                        />
                                         <button className="copy-button" onClick={() => copyToClipboard(results[model].explanation)}>
                                             Copy
                                         </button>
