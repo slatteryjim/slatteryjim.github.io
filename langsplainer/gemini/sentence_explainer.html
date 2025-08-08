@@ -101,11 +101,10 @@ Your task is to take a single Chinese sentence and break it down following the p
 
 ### Strict HTML Formatting Rules
 
-1.  Clause Headings with Ruby Pinyin:
+1.  Clause Headings:
     *   Begin each clause with an `<h3>` tag.
-    *   The format must be: `<h3><segmented Chinese clause with ruby pinyin></h3>`.
-    *   Crucially, each space-separated Chinese word/phrase in the clause must be wrapped in `<ruby>` tags, with the pinyin in an `<rt>` tag. This places the pinyin directly above the characters.
-    *   Example: `<h3><ruby><rb>为了</rb><rt>wèi·le</rt></ruby> <ruby><rb>顾全面子</rb><rt>gùquán miàn·zi</rt></ruby>，</h3>`
+    *   The format must be: `<h3><segmented Chinese clause></h3>`.
+    *   Example: `<h3>为了 顾全面子，</h3>`
 
 2.  Vocabulary/Phrase List:
     *   Use a `<ul>` for the list of vocabulary and phrases.
@@ -117,7 +116,7 @@ Your task is to take a single Chinese sentence and break it down following the p
 
 3.  **Grammar Notes (Conditional)**:
     *   **Only if** there is a relevant grammar point in the clause, add a `<div>` with the class `grammar-notes` immediately after the `<ul>` for vocabulary.
-    *   Start this section with `<h4>📘语法笔记</h4>`.
+    *   Start this section with `<h4>💡语法点</h4>`.
     *   Use a `<ul>` to list the grammar points.
     *   The format for each point MUST be: `<li><b>Pattern/Word</b>: Chinese explanation — <i>English explanation</i></li>`
 
@@ -128,7 +127,7 @@ Your task is to take a single Chinese sentence and break it down following the p
 **Required HTML Output:**
 
 ```html
-<h3><ruby><rb>为了</rb><rt>wèi·le</rt></ruby> <ruby><rb>顾全面子</rb><rt>gùquán miàn·zi</rt></ruby>，</h3>
+<h3>为了 顾全面子，</h3>
 <ul>
   <li><b>为了</b> <i>wèi·le</i> 为了…的目的 — <i>in order to; for the sake of</i></li>
   <li><b>顾全面子</b> <i>gùquán miàn·zi</i> 保全面子 — <i>to save face</i>
@@ -138,7 +137,7 @@ Your task is to take a single Chinese sentence and break it down following the p
     </ul>
   </li>
 </ul>
-<h3><ruby><rb>他</rb><rt>tā</rt></ruby> <ruby><rb>装出</rb><rt>zhuāngchū</rt></ruby> <ruby><rb>一副</rb><rt>yī fù</rt></ruby> <ruby><rb>随随便便</rb><rt>suísuí-biànbian</rt></ruby> <ruby><rb>的</rb><rt>de</rt></ruby> <ruby><rb>样子</rb><rt>yàng·zi</rt></ruby>。</h3>
+<h3>他 装出 一副 随随便便 的 样子。</h3>
 <ul>
   <li><b>装出</b> <i>zhuāngchū</i> 假装表现 — <i>to feign; put on</i></li>
   <li><b>一副</b> <i>yī fù</i> （表神态的量词） — <i>classifier for looks</i></li>
@@ -146,7 +145,7 @@ Your task is to take a single Chinese sentence and break it down following the p
   <li><b>样子</b> <i>yàng·zi</i> 外表、神态 — <i>appearance; manner</i></li>
 </ul>
 <div class="grammar-notes">
-  <h4>📘语法笔记</h4>
+  <h4>💡语法点</h4>
   <ul>
     <li><b>“一副...的样子”</b>: 描述神态或外表的结构，“副”为量词，“的”作连接。 — <i>Describes a look or manner; "副" is the classifier, "的" links to "样子".</i></li>
     <li><b>随随便便</b>: AABB 叠词，形象描述状态或动作。 — <i>A vivid AABB reduplication for states or actions.</i></li>
