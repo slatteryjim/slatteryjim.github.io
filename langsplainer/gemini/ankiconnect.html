@@ -50,6 +50,31 @@
     .controls, .filters {
       margin-top: 20px;
     }
+    .field-mapping {
+      margin-top: 20px;
+      padding: 10px;
+      background-color: #fff;
+      border: 1px solid #e5e5e5;
+    }
+    .field-mapping h3 {
+      margin: 0 0 10px 0;
+      font-size: 1.1em;
+    }
+    .per-model {
+      margin-top: 8px;
+      cursor: pointer;
+      color: #2563eb;
+      user-select: none;
+    }
+    .per-model-table {
+      margin-top: 8px;
+      border-collapse: collapse;
+      width: 100%;
+    }
+    .per-model-table th, .per-model-table td {
+      border: 1px solid #ddd;
+      padding: 6px;
+    }
     label.filter-label {
       margin-right: 10px;
     }
@@ -336,7 +361,7 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
 
       // Filters
       const [filterSuspended, setFilterSuspended] = useState(false); // filter out suspended
-      const [filterEmptyNotes, setFilterEmptyNotes] = useState(false); // only show notes with empty "Notes" field
+      const [filterEmptyNotes, setFilterEmptyNotes] = useState(false); // only show notes with empty output field
 
       // Gemini
       const [apiKey, setApiKey] = useState("");
@@ -358,6 +383,12 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
 
         const [showSystemPrompt, setShowSystemPrompt] = useState(false);
         const [systemPrompt, setSystemPrompt] = useState(defaultSystemPrompt);
+
+      // Field mapping: global defaults + per-model overrides
+      const [globalSentenceField, setGlobalSentenceField] = useState("Sentence");
+      const [globalOutputField, setGlobalOutputField] = useState("Notes");
+      const [perModelMapping, setPerModelMapping] = useState({}); // { [modelName]: { sentence: string, output: string } }
+      const [showPerModel, setShowPerModel] = useState(false);
 
       useEffect(() => {
         // Load any saved API key from localStorage
@@ -395,6 +426,7 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
       const handleDeckChange = (e) => {
         setSelectedDeck(e.target.value);
         setNotesInfo([]);
+        setPerModelMapping({});
       };
 
       // Browse deck
@@ -442,12 +474,84 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
           }));
 
           setNotesInfo(enhancedNotes);
+
+          // Initialize/restore field mappings for this deck based on found models/fields
+          try {
+            const models = Array.from(new Set(enhancedNotes.map(n => n.modelName)));
+            const modelFieldsMap = {};
+            enhancedNotes.forEach(n => {
+              if (!modelFieldsMap[n.modelName]) {
+                modelFieldsMap[n.modelName] = Object.keys(n.fields || {});
+              }
+            });
+
+            // Try to restore saved mapping for this deck
+            const raw = localStorage.getItem("ac_gemini_field_mapping_v2");
+            const saved = raw ? JSON.parse(raw) : {};
+            const key = selectedDeck || "__all__";
+            const savedDeck = saved[key] || {};
+
+            // Guess sensible defaults if not saved
+            const allFieldsUnion = Array.from(new Set(enhancedNotes.flatMap(n => Object.keys(n.fields || {}))));
+            const guessFrom = (fields, candidates) => {
+              const lower = fields.map(f => ({ f, l: f.toLowerCase() }));
+              for (const c of candidates) {
+                const hit = lower.find(x => x.l === c.toLowerCase());
+                if (hit) return hit.f;
+              }
+              for (const c of candidates) {
+                const hit2 = lower.find(x => x.l.includes(c.toLowerCase()));
+                if (hit2) return hit2.f;
+              }
+              return fields[0] || "";
+            };
+
+            const defaultSentence = savedDeck.globalSentenceField || guessFrom(allFieldsUnion, ["Sentence", "Expression", "Front", "Term", "Text", "Word", "Target", "Phrase"]);
+            const defaultOutput = savedDeck.globalOutputField || guessFrom(allFieldsUnion, ["Notes", "Back", "Explanation", "Meaning", "Definition", "Extra", "Hint"]);
+            setGlobalSentenceField(defaultSentence || "Sentence");
+            setGlobalOutputField(defaultOutput || "Notes");
+
+            const initialPerModel = {};
+            models.forEach(m => {
+              const modelSaved = (savedDeck.perModelMapping || {})[m];
+              const flds = modelFieldsMap[m] || allFieldsUnion;
+              initialPerModel[m] = {
+                sentence: modelSaved?.sentence || guessFrom(flds, [defaultSentence, "Sentence", "Expression", "Front", "Term", "Text", "Word", "Target", "Phrase"]),
+                output: modelSaved?.output || guessFrom(flds, [defaultOutput, "Notes", "Back", "Explanation", "Meaning", "Definition", "Extra", "Hint"]),
+              };
+            });
+            setPerModelMapping(initialPerModel);
+          } catch (e) {
+            console.warn("Failed to init field mappings", e);
+          }
         } catch (err) {
           setError(err.message);
         } finally {
           setLoading(false);
         }
       };
+
+      // Resolve fields for a given note (per-model override -> global)
+      const resolveFieldsForNote = (note) => {
+        const model = note.modelName;
+        const mapping = perModelMapping[model] || {};
+        const sf = mapping.sentence || globalSentenceField;
+        const of = mapping.output || globalOutputField;
+        return { sentenceFieldName: sf, outputFieldName: of };
+      };
+
+      // Persist mapping per deck
+      useEffect(() => {
+        if (!selectedDeck) return;
+        const raw = localStorage.getItem("ac_gemini_field_mapping_v2");
+        const saved = raw ? JSON.parse(raw) : {};
+        saved[selectedDeck] = {
+          globalSentenceField,
+          globalOutputField,
+          perModelMapping,
+        };
+        localStorage.setItem("ac_gemini_field_mapping_v2", JSON.stringify(saved));
+      }, [selectedDeck, globalSentenceField, globalOutputField, perModelMapping]);
 
       // Filtered notes
       const filteredNotes = notesInfo.filter((note) => {
@@ -456,8 +560,9 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
           return false;
         }
 
-        // Filter 2: Show only notes whose "Notes" field is empty
-        const notesFieldValue = note.fields?.Notes?.value?.trim() || "";
+        // Filter 2: Show only notes whose selected output field is empty
+        const { outputFieldName } = resolveFieldsForNote(note);
+        const notesFieldValue = note.fields?.[outputFieldName]?.value?.trim() || "";
         if (filterEmptyNotes && notesFieldValue) {
           return false;
         }
@@ -466,7 +571,7 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
       });
 
       // A single shared helper to update a note with explanation
-      async function updateNoteWithExplanation(noteId, explanation) {
+      async function updateNoteWithExplanation(noteId, explanation, outputFieldName) {
         // Anki will render the field as HTML, so add <br> before each newline
         const explanationWithLineBreaks = explanation.replace(/\n/g, "<br>\n");
 
@@ -475,7 +580,7 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
           note: {
             id: noteId,
             fields: {
-              Notes: explanationWithLineBreaks,
+              [outputFieldName]: explanationWithLineBreaks,
             },
           },
         });
@@ -484,30 +589,35 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
       }
 
       // Individual generation (pass systemPrompt)
-      const handleGenerateBreakdown = async (noteId, sentence) => {
+      const handleGenerateBreakdown = async (note) => {
+        const { sentenceFieldName, outputFieldName } = resolveFieldsForNote(note);
+        const noteId = note.noteId;
+        const sentence = note.fields?.[sentenceFieldName]?.value || "";
         if (!apiKey) {
           alert("Please provide your Gemini API key first.");
           return;
         }
         if (!sentence) {
-          alert("There's no Sentence field text to process.");
+          alert(`There's no text in the selected sentence field ("${sentenceFieldName}").`);
           return;
         }
         setLoading(true);
 
         try {
           const { explanation } = await callGemini(apiKey, sentence, "gemini-2.0-flash", systemPrompt);
-          await updateNoteWithExplanation(noteId, explanation);
+          await updateNoteWithExplanation(noteId, explanation, outputFieldName);
           // Update React state with the raw explanation
           setNotesInfo((prev) =>
             prev.map((n) => {
               if (n.noteId === noteId) {
+                const newFields = { ...n.fields };
+                const prevSub = newFields[outputFieldName] || {};
                 return {
                   ...n,
                   fields: {
-                    ...n.fields,
-                    Notes: {
-                      ...n.fields.Notes,
+                    ...newFields,
+                    [outputFieldName]: {
+                      ...prevSub,
                       value: explanation,
                     },
                   },
@@ -531,8 +641,9 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
         }
 
         const notesToProcess = filteredNotes.filter((note) => {
-          const sentenceField = note.fields?.Sentence?.value?.trim() || "";
-          return !!sentenceField; // only want notes that have something in Sentence
+          const { sentenceFieldName } = resolveFieldsForNote(note);
+          const sentenceField = note.fields?.[sentenceFieldName]?.value?.trim() || "";
+          return !!sentenceField; // only want notes that have something in selected sentence field
         });
 
         if (notesToProcess.length === 0) {
@@ -563,7 +674,8 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
         // Helper to process a single note
         const processNote = async (note) => {
           const noteId = note.noteId;
-          const sentence = note.fields?.Sentence?.value || "";
+          const { sentenceFieldName, outputFieldName } = resolveFieldsForNote(note);
+          const sentence = note.fields?.[sentenceFieldName]?.value || "";
           const startTime = performance.now();
 
           try {
@@ -573,17 +685,19 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
             setAccTotalTokens((prev) => prev + stats.totalTokenCount);
 
             // Update the note in Anki (no re-render yet)
-            await updateNoteWithExplanation(noteId, explanation);
+            await updateNoteWithExplanation(noteId, explanation, outputFieldName);
 
             // Update our local array with the raw explanation
             const idx = updatedNotesArray.findIndex((n) => n.noteId === noteId);
             if (idx >= 0) {
+              const newFields = { ...updatedNotesArray[idx].fields };
+              const prevSub = newFields[outputFieldName] || {};
               updatedNotesArray[idx] = {
                 ...updatedNotesArray[idx],
                 fields: {
-                  ...updatedNotesArray[idx].fields,
-                  Notes: {
-                    ...updatedNotesArray[idx].fields.Notes,
+                  ...newFields,
+                  [outputFieldName]: {
+                    ...prevSub,
                     value: explanation,
                   },
                 },
@@ -750,9 +864,95 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
                 checked={filterEmptyNotes}
                 onChange={() => setFilterEmptyNotes(!filterEmptyNotes)}
               />
-              Only show notes missing the "Notes" field
+              Only show notes missing the selected output field
             </label>
           </div>
+
+          {/* Field mapping */}
+          {notesInfo.length > 0 && (
+            <div className="field-mapping">
+              <h3>Field Mapping</h3>
+              <div>
+                <div>
+                  <label style={{ marginRight: 8 }}>Sentence field:</label>
+                  <select
+                    value={globalSentenceField}
+                    onChange={(e) => setGlobalSentenceField(e.target.value)}
+                  >
+                    {Array.from(new Set(notesInfo.flatMap(n => Object.keys(n.fields || {})))).map(f => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ marginTop: 6 }}>
+                  <label style={{ marginRight: 8 }}>Output field:</label>
+                  <select
+                    value={globalOutputField}
+                    onChange={(e) => setGlobalOutputField(e.target.value)}
+                  >
+                    {Array.from(new Set(notesInfo.flatMap(n => Object.keys(n.fields || {})))).map(f => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="per-model" onClick={() => setShowPerModel(!showPerModel)}>
+                {showPerModel ? '▼ Hide per-note-type overrides' : '▶ Show per-note-type overrides'}
+              </div>
+              {showPerModel && (
+                <table className="per-model-table">
+                  <thead>
+                    <tr>
+                      <th>Note Type</th>
+                      <th>Sentence field</th>
+                      <th>Output field</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from(new Set(notesInfo.map(n => n.modelName))).map(model => {
+                      const fields = Object.keys((notesInfo.find(n => n.modelName === model) || {}).fields || {});
+                      const mapping = perModelMapping[model] || { sentence: globalSentenceField, output: globalOutputField };
+                      return (
+                        <tr key={model}>
+                          <td>{model}</td>
+                          <td>
+                            <select
+                              value={mapping.sentence}
+                              onChange={(e) => setPerModelMapping(prev => ({
+                                ...prev,
+                                [model]: { ...(prev[model] || {}), sentence: e.target.value, output: (prev[model]?.output || globalOutputField) }
+                              }))}
+                            >
+                              {fields.map(f => (
+                                <option key={f} value={f}>{f}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <select
+                              value={mapping.output}
+                              onChange={(e) => setPerModelMapping(prev => ({
+                                ...prev,
+                                [model]: { ...(prev[model] || {}), output: e.target.value, sentence: (prev[model]?.sentence || globalSentenceField) }
+                              }))}
+                            >
+                              {fields.map(f => (
+                                <option key={f} value={f}>{f}</option>
+                              ))}
+                            </select>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+              <div className="stats" style={{ marginTop: 6 }}>
+                Choices persist per deck and apply to all actions.
+              </div>
+            </div>
+          )}
 
           {/* Bulk generate */}
           {filteredNotes.length > 0 && (
@@ -806,31 +1006,36 @@ And here is an example response for the input sentence "Ocurre una cosa graciosa
                   <tr>
                     <th>Note ID</th>
                     <th>Suspended?</th>
-                    <th>Sentence</th>
-                    <th>Notes</th>
+                    <th>Sentence (field)</th>
+                    <th>Output (field)</th>
                     <th>Generate Breakdown</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredNotes.map((note) => {
                     const { noteId, isSuspended, fields } = note;
-                    const sentenceField = fields?.Sentence?.value || "";
-                    const notesField = fields?.Notes?.value || "";
+                    const { sentenceFieldName, outputFieldName } = resolveFieldsForNote(note);
+                    const sentenceField = fields?.[sentenceFieldName]?.value || "";
+                    const notesField = fields?.[outputFieldName]?.value || "";
                     return (
                       <tr key={noteId}>
                         <td>{noteId}</td>
                         <td>{isSuspended ? "Yes" : "No"}</td>
-                        <td>{sentenceField}</td>
+                        <td>
+                          <div style={{ fontSize: '0.85em', color: '#555' }}>{sentenceFieldName}</div>
+                          <div>{sentenceField}</div>
+                        </td>
                         <td
                           className={`${notesField ? "notes-field-updated" : ""}`}
                           style={{ whiteSpace: 'pre-wrap' }}
                         >
-                          {notesField}
+                          <div style={{ fontSize: '0.85em', color: '#555' }}>{outputFieldName}</div>
+                          <div>{notesField}</div>
                         </td>
                         <td>
                           <button
                             className="generate-button"
-                            onClick={() => handleGenerateBreakdown(noteId, sentenceField)}
+                            onClick={() => handleGenerateBreakdown(note)}
                             disabled={loading || isBulkGenerating}
                           >
                             Generate
