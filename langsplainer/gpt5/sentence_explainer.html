@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sentence Explainer with GPT-5</title>
+    <!-- React and ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Optional: Include a CSS library or custom styles here -->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #fafafa;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 10px;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+        input[type="text"], input[type="password"] {
+            padding: 8px;
+            margin-top: 10px;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 10px 20px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+        .explanation {
+            background-color: #f0f0f0;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            position: relative; /* For positioning the copy button */
+        }
+        .explanation h3 {
+            margin-top: 0;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+        .toggle-button {
+            margin-left: 10px;
+            padding: 5px 10px;
+            font-size: 0.9em;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .stats {
+            font-size: 0.8em;
+            margin-top: 10px;
+            color: #666;
+        }
+        .results-container {
+            display: flex;
+            gap: 20px; /* Spacing between columns */
+        }
+        .model-column {
+            flex: 1; /* Each column takes equal width */
+        }
+        .copy-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            font-size: 0.8em;
+            cursor: pointer;
+        }
+        /* HTML output styling */
+        .html-output h3 { margin: 0.6em 0 0.3em; }
+        .html-output h4 { margin: 0.8em 0 0.4em; }
+        .html-output ul { margin: 0.25em 0 0.75em 1.25em; }
+        .html-output li { margin: 0.2em 0; }
+        .html-output rt { font-size: 0.6em; color: #666; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script id="defaultSystemPrompt" type="text/plain">
+You are an expert bilingual teaching assistant specializing in Chinese. Your primary goal is to create "Chinese-first, maximum-value" sentence breakdowns for language learners, formatted in clean HTML.
+
+Your task is to take a single Chinese sentence and break it down following the precise format and principles below. Pack the most helpful information into the smallest space, encouraging the learner to stay in Chinese as long as possible.
+
+### Guiding Principles
+1.  Chinese First: Always present Chinese content before its English equivalent.
+2.  Chunking: Analyze meaningful phrases (e.g., 成语, 搭配) first, then break down their component words.
+3.  **Contextual Grammar**: If a clause contains a noteworthy grammatical pattern, structure, or function word, provide a concise explanation *after* the vocabulary list for that clause.
+4.  Efficiency: Provide only essential metadata: pinyin, part-of-speech, a concise Chinese gloss, and a concise English gloss.
+5.  Formatting: Pinyin and all English text **must be italicized** using `<i>` tags (not `<em>`).
+
+### Strict HTML Formatting Rules
+
+1.  Clause Headings:
+    *   Begin each clause with an `<h3>` tag.
+    *   The format must be: `<h3><segmented Chinese clause></h3>`.
+    *   Example: `<h3>为了 顾全面子，</h3>`
+
+2.  Vocabulary/Phrase List:
+    *   Use a `<ul>` for the list of vocabulary and phrases.
+    *   Each item must be in a `<li>` tag.
+    *   The format MUST be: `<b>Word/Phrase</b> <i>pinyin</i> 【POS】 Chinese gloss/synonym — <i>English gloss</i>`
+    *   Word/Phrase: must be wrapped in `<b>` tags.
+    *   Pinyin & English gloss: must be wrapped in `<i>` tags. For pinyin, insert a centered dot before neutral tones (e.g., wèi·le, miàn·zi).
+    *   【POS】: Use single characters (名, 动, 形, 副, 介, 连, 量) or descriptive tags (搭配, 结构, 成语) as appropriate.
+
+3.  **Grammar Notes (Conditional)**:
+    *   **Only if** there is a relevant grammar point in the clause, add a `<div>` with the class `grammar-notes` immediately after the `<ul>` for vocabulary.
+    *   Start this section with `<h4>💡语法点</h4>`.
+    *   Use a `<ul>` to list the grammar points.
+    *   The format for each point MUST be: `<li><b>Pattern/Word</b>: Chinese explanation — <i>English explanation</i></li>`
+
+### Gold-Standard HTML Example (Follow this PRECISELY)
+
+**Input Sentence:** 为了顾全面子，他装出一副随随便便的样子。
+
+**Required HTML Output (Output only the HTML fragment; do not include Markdown fences, headings, or commentary):**
+
+<h3>为了 顾全面子，</h3>
+<ul>
+  <li><b>为了</b> <i>wèi·le</i>【介】为了…的目的 — <i>in order to; for the sake of</i></li>
+  <li><b>顾全面子</b> <i>gùquán miàn·zi</i>【搭配】保全面子 — <i>to save face</i>
+    <ul>
+      <li><b>顾全</b> <i>gùquán</i>【动】保全、照顾 — <i>to preserve</i></li>
+      <li><b>面子</b> <i>miàn·zi</i>【名】体面、脸面 — <i>face; reputation</i></li>
+    </ul>
+  </li>
+</ul>
+<h3>他 装出 一副 随随便便 的 样子。</h3>
+<ul>
+  <li><b>装出</b> <i>zhuāngchū</i>【动】假装表现 — <i>to feign; put on</i></li>
+  <li><b>一副</b> <i>yī fù</i>【量】（表神态的量词） — <i>classifier for looks</i></li>
+  <li><b>随随便便</b> <i>suísuí-biànbian</i>【形】不拘小节、很随意 — <i>casual; nonchalant</i></li>
+  <li><b>样子</b> <i>yàng·zi</i>【名】外表、神态 — <i>appearance; manner</i></li>
+</ul>
+<div class="grammar-notes">
+  <h4>💡语法点</h4>
+  <ul>
+    <li><b>“一副...的样子”</b>: 描述神态或外表的结构，“副”为量词，“的”作连接。 — <i>Describes a look or manner; "副" is the classifier, "的" links to "样子".</i></li>
+    <li><b>随随便便</b>: AABB 叠词，形象描述状态或动作。 — <i>A vivid AABB reduplication for states or actions.</i></li>
+  </ul>
+</div>
+    </script>
+
+    <script type="text/babel" data-type="module" data-presets="env,react,typescript">
+        const { useState, useEffect, StrictMode } = React;
+
+        // Default to GPT-5 family; override via UI or URL param `?models=gpt-5,gpt-5-mini`.
+        const defaultModels = [
+            "gpt-5",
+            "gpt-5-mini",
+            "gpt-5-nano",
+            "gpt-5-chat-latest"
+        ];
+
+        // Strip common code fences like ```html ... ```
+        const stripCodeFences = (s) => {
+            if (!s) return '';
+            let out = s.trim();
+            out = out.replace(/^```(?:html)?\s*/i, '');
+            out = out.replace(/\s*```$/i, '');
+            return out.trim();
+        };
+
+        // Very light sanitizer to prevent script injection from model output
+        const sanitizeHTML = (html) => {
+            const doc = new DOMParser().parseFromString(html || '', 'text/html');
+            doc.querySelectorAll('script, style, iframe, object, embed, link').forEach(el => el.remove());
+            doc.querySelectorAll('*').forEach(el => {
+                [...el.attributes].forEach(attr => {
+                    const name = attr.name.toLowerCase();
+                    const val = (attr.value || '').trim().toLowerCase();
+                    if (name.startsWith('on')) el.removeAttribute(attr.name);
+                    if ((name === 'href' || name === 'src') && val.startsWith('javascript:')) el.removeAttribute(attr.name);
+                });
+            });
+            return doc.body.innerHTML;
+        };
+
+        const promptEl = document.getElementById('defaultSystemPrompt');
+        const defaultSystemPrompt = (promptEl ? promptEl.textContent : '').trim();
+
+        const SentenceExplainer = () => {
+            // State variables
+            const [sentence, setSentence] = useState('国央企如此热切拥抱大模型或与一道新政有关。');
+            const [apiKey, setApiKey] = useState('');
+            const [results, setResults] = useState({}); // Store results for all models
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
+            const [showApiKey, setShowApiKey] = useState(false);
+            const [isReady, setIsReady] = useState(false);
+            const [systemPromptText, setSystemPromptText] = useState(defaultSystemPrompt);
+            const [showSystemPrompt, setShowSystemPrompt] = useState(false);
+            const [models, setModels] = useState(defaultModels);
+            const [modelsText, setModelsText] = useState(defaultModels.join(', '));
+            const [maxOutputTokens, setMaxOutputTokens] = useState(8192);
+
+            // Load API key and sentence, then set isReady
+            useEffect(() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const sentenceFromUrl = urlParams.get('sentence');
+                const apiKeyFromUrl = urlParams.get('apiKey');
+                const modelsFromUrl = urlParams.get('models');
+
+                // Prioritize URL parameters over localStorage
+                if (sentenceFromUrl) {
+                    setSentence(decodeURIComponent(sentenceFromUrl));
+                }
+
+                const handleApiKey = (key) => {
+                    if (key) {
+                        setApiKey(key);
+                        localStorage.setItem('openai_api_key', key);
+                    }
+                    setIsReady(true); // Everything is ready now
+                };
+
+                const parseModels = (s) => (s || '')
+                    .split(',')
+                    .map(x => x.trim())
+                    .filter(Boolean);
+
+                if (modelsFromUrl) {
+                    const parsed = parseModels(decodeURIComponent(modelsFromUrl));
+                    if (parsed.length) {
+                        setModels(parsed);
+                        const csv = parsed.join(', ');
+                        setModelsText(csv);
+                        localStorage.setItem('openai_models', csv);
+                    }
+                } else {
+                    const storedModels = localStorage.getItem('openai_models');
+                    if (storedModels) {
+                        const parsed = parseModels(storedModels);
+                        if (parsed.length) {
+                            setModels(parsed);
+                            setModelsText(storedModels);
+                        }
+                    }
+                }
+
+                if (apiKeyFromUrl) {
+                    handleApiKey(decodeURIComponent(apiKeyFromUrl));
+                } else {
+                    const storedApiKey = localStorage.getItem('openai_api_key');
+                    handleApiKey(storedApiKey);
+                }
+            }, []);
+
+            // Trigger handleSubmit when isReady changes and sentence is available
+            useEffect(() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const sentenceFromUrl = urlParams.get('sentence');
+                if (isReady && sentenceFromUrl) {
+                    handleSubmit(null, decodeURIComponent(sentenceFromUrl));
+                }
+            }, [isReady]);
+
+            // Function to handle API key changes
+            const handleApiKeyChange = (e) => {
+                const value = e.target.value;
+                setApiKey(value);
+                localStorage.setItem('openai_api_key', value);
+            };
+
+            // Function to toggle API key visibility
+            const toggleApiKeyVisibility = () => {
+                setShowApiKey(!showApiKey);
+            };
+
+            // Handle models input changes
+            const handleModelsChange = (e) => {
+                const value = e.target.value;
+                setModelsText(value);
+                const parsed = value.split(',').map(x => x.trim()).filter(Boolean);
+                if (parsed.length) setModels(parsed);
+                localStorage.setItem('openai_models', value);
+            };
+
+            // Function to copy text to clipboard
+            const copyToClipboard = (text) => {
+                navigator.clipboard.writeText(text).then(() => {
+                    // Optional: Show a success message or change the button text briefly
+                    console.log('Text copied to clipboard');
+                }).catch(err => {
+                    console.error('Failed to copy text: ', err);
+                });
+            };
+
+            // Function to handle form submission or direct call from URL param
+            const handleSubmit = async (e, sentenceFromUrl = null) => {
+                if (e) e.preventDefault();
+                const currentSentence = sentenceFromUrl || sentence;
+                setError(null);
+                setResults({}); // Clear previous results
+                setLoading(true);
+
+                if (!apiKey) {
+                    setError('Please provide your OpenAI API key.');
+                    setLoading(false);
+                    return;
+                }
+
+                if (!currentSentence.trim()) {
+                    setError('Please enter a sentence to process.');
+                    setLoading(false);
+                    return;
+                }
+
+                if (!models || models.length === 0) {
+                    setError('Please specify at least one model.');
+                    setLoading(false);
+                    return;
+                }
+
+                const tasks = models.map(async (model) => {
+                    try {
+                        const result = await queryOpenAI(model, currentSentence);
+                        // Update results for the specific model as it completes
+                        setResults((prevResults) => ({
+                            ...prevResults,
+                            [model]: result,
+                        }));
+                    } catch (err) {
+                        console.error(`Error with model ${model}:`, err);
+                        // Update results with an error for the specific model
+                        setResults((prevResults) => ({
+                            ...prevResults,
+                            [model]: {
+                                model: model,
+                                explanation: null,
+                                stats: `Error: ${err.message || 'An unexpected error occurred.'}`,
+                            },
+                        }));
+                    }
+                });
+
+                // Wait for all models to finish before clearing loading state
+                await Promise.allSettled(tasks);
+                setLoading(false);
+            };
+
+            // Function to query a single OpenAI model
+            const queryOpenAI = async (model, currentSentence) => {
+                const startTime = performance.now();
+                let endTime;
+                let ttfb;
+
+                // Prepare the system prompt from state
+                const systemPrompt = systemPromptText;
+
+                // Make the API call
+                // Build request body, only include reasoning knob for non-chat models
+                const requestBody = {
+                    model,
+                    // Provide system prompt as `instructions` per Responses API
+                    instructions: systemPrompt,
+                    // Simplest input shape per migration guide
+                    input: currentSentence,
+                    // Allow caller to control the output budget
+                    max_output_tokens: Number(maxOutputTokens) || 2048
+                };
+                if (!/chat/i.test(model)) {
+                    requestBody.reasoning = { effort: 'low' };
+                }
+
+                const response = await fetch('https://api.openai.com/v1/responses', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                // Measure TTFB
+                const reader = response.body.getReader();
+                const firstChunk = await reader.read();
+                ttfb = performance.now() - startTime;
+                const decoder = new TextDecoder();
+                let responseText = decoder.decode(firstChunk.value || new Uint8Array(), { stream: true });
+
+                while (!firstChunk.done) {
+                    const nextChunk = await reader.read();
+                    if (nextChunk.done) break;
+                    responseText += decoder.decode(nextChunk.value, { stream: true });
+                }
+
+                // Handle non-OK responses
+                if (!response.ok) {
+                    const errorData = JSON.parse(responseText);
+                    throw new Error(errorData.error.message || 'API request failed.');
+                }
+
+                const data = JSON.parse(responseText);
+                console.log(`API response for ${model}:`, data);
+
+                endTime = performance.now();
+
+                // Extract text robustly from Responses payloads
+                const extractText = (d) => {
+                    if (!d || typeof d !== 'object') return '';
+                    // 1) Preferred helper
+                    if (typeof d.output_text === 'string' && d.output_text.trim()) return d.output_text;
+                    // 2) Some SDKs expose `output` as a string
+                    if (typeof d.output === 'string' && d.output.trim()) return d.output;
+                    // 3) Official shape: array of items with content array
+                    if (Array.isArray(d.output)) {
+                        const parts = [];
+                        for (const item of d.output) {
+                            const content = item && item.content;
+                            if (Array.isArray(content)) {
+                                for (const c of content) {
+                                    // Common fields
+                                    if (c && typeof c.text === 'string' && c.text) parts.push(c.text);
+                                    else if (c && typeof c.output_text === 'string' && c.output_text) parts.push(c.output_text);
+                                    // Some responses may nest text under `summary_text`
+                                    else if (c && typeof c.summary_text === 'string' && c.summary_text) parts.push(c.summary_text);
+                                }
+                            } else if (typeof content === 'string' && content.trim()) {
+                                parts.push(content);
+                            }
+                        }
+                        if (parts.join('').trim()) return parts.join('\n');
+                    }
+                    // 4) Rare: chat-like fallback
+                    if (Array.isArray(d.choices) && d.choices[0] && d.choices[0].message && typeof d.choices[0].message.content === 'string') {
+                        return d.choices[0].message.content;
+                    }
+                    return '';
+                };
+
+                const output = extractText(data);
+                const explanation = (output || '').trim() || 'No explanation generated.';
+
+                const { prompt_tokens, completion_tokens, total_tokens } = data.usage || {};
+                const totalDuration = endTime - startTime;
+                const tokensPerSecond = total_tokens ? total_tokens / (totalDuration / 1000) : 0;
+
+                // Capture status/incomplete reason if present
+                const status = data.status || 'unknown';
+                const incompleteReason = data.incomplete_details && data.incomplete_details.reason ? data.incomplete_details.reason : null;
+                const stats = `Status: ${status}${incompleteReason ? ` (${incompleteReason})` : ''} | TTFB: ${ttfb.toFixed(2)} ms | Total Duration: ${totalDuration.toFixed(2)} ms | Prompt Tokens: ${prompt_tokens ?? 'n/a'} | Completion Tokens: ${completion_tokens ?? 'n/a'} | Total Tokens: ${total_tokens ?? 'n/a'} | Tokens/Second: ${tokensPerSecond.toFixed(2)}`;
+
+                console.log(`Stats for ${model}: ${stats}`);
+
+                return { model, explanation, stats };
+            };
+
+            return (
+                <div>
+                    <h1>Sentence Explainer</h1>
+                    <p>
+                        This tool allows you to input a sentence in your target language and receive a detailed breakdown to aid in your language learning.<br />
+                        First, provide your OpenAI API key, either through the text input field or URL parameter (it will also be stored in the browser local storage for convenience).<br />
+                        Enter the sentence you want to understand and click "Explain Sentence". The tool will send a prompt to the selected GPT-5 models using OpenAI's Responses API to generate a detailed breakdown.<br />
+                        The returned explanation is displayed below.
+                    </p>
+                    {/* ▶/▼ System Prompt toggle */}
+                    <div
+                        style={{ cursor: 'pointer', color: 'blue' }}
+                        onClick={() => setShowSystemPrompt(!showSystemPrompt)}
+                    >{showSystemPrompt ? '▼' : '▶'} System Prompt</div>
+                    {showSystemPrompt && (
+                        <textarea
+                            value={systemPromptText}
+                            onChange={(e) => setSystemPromptText(e.target.value)}
+                            style={{ marginTop: '10px', height: '200px' }}
+                        />
+                    )}
+
+                    <form onSubmit={handleSubmit}>
+                        <label>
+                            OpenAI API Key:
+                            <div style={{ position: 'relative' }}>
+                                <input
+                                    type={showApiKey ? 'text' : 'password'}
+                                    value={apiKey}
+                                    onChange={handleApiKeyChange}
+                                    placeholder="Enter your API key"
+                                    required
+                                />
+                                <button
+                                    type="button"
+                                    onClick={toggleApiKeyVisibility}
+                                    className="toggle-button"
+                                >
+                                    {showApiKey ? 'Hide' : 'Show'}
+                                </button>
+                            </div>
+                        </label>
+                        <br />
+                        <label>
+                            Max output tokens:
+                            <input
+                                type="number"
+                                min={256}
+                                max={16384}
+                                step={256}
+                                value={maxOutputTokens}
+                                onChange={(e) => setMaxOutputTokens(e.target.value)}
+                                style={{ width: '100%' }}
+                            />
+                        </label>
+                        <br />
+                        <label>
+                            Models (comma-separated):
+                            <input
+                                type="text"
+                                value={modelsText}
+                                onChange={handleModelsChange}
+                                placeholder="e.g. gpt-5, gpt-5-mini, gpt-5-nano, gpt-5-chat-latest"
+                                style={{ width: '100%' }}
+                            />
+                        </label>
+                        <br />
+                        <label>
+                            Enter Sentence:
+                            <textarea
+                                value={sentence}
+                                onChange={(e) => setSentence(e.target.value)}
+                                placeholder="Paste your sentence here..."
+                                required
+                            ></textarea>
+                        </label>
+                        <br />
+                        <button type="submit" disabled={loading}>
+                            {loading ? 'Processing...' : 'Explain Sentence'}
+                        </button>
+                    </form>
+                    {error && <div className="error">Error: {error}</div>}
+
+                    {/* Results Display */}
+                    <div className="results-container">
+                        {models.map((model) => (
+                            <div key={model} className="model-column">
+                                <h2>{model}</h2>
+                                {results[model] && results[model].explanation && (
+                                    <div className="explanation">
+                                        <div
+                                            className="html-output"
+                                            dangerouslySetInnerHTML={{
+                                                __html: sanitizeHTML(stripCodeFences(results[model].explanation))
+                                            }}
+                                        />
+                                        <button className="copy-button" onClick={() => copyToClipboard(results[model].explanation)}>
+                                            Copy
+                                        </button>
+                                    </div>
+                                )}
+                                {results[model] && (
+                                    <div className="stats">
+                                        <p>{results[model].stats}</p>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(
+            <StrictMode>
+                <SentenceExplainer />
+            </StrictMode>
+        );
+    </script>
+</body>
+</html>
