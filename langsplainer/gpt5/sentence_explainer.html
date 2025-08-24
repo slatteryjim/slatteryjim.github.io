@@ -523,14 +523,32 @@ Your task is to take a single Chinese sentence and break it down following the p
                 const output = extractText(data);
                 const explanation = (output || '').trim() || 'No explanation generated.';
 
-                const { prompt_tokens, completion_tokens, total_tokens } = data.usage || {};
+                // Robust usage extraction across Responses/Chat payload variants
+                const usage = data.usage || (Array.isArray(data.output) && data.output[0] && data.output[0].usage) || {};
+                const prompt_tokens = (
+                    usage.prompt_tokens ?? usage.input_tokens ?? usage.input_text_tokens ??
+                    usage.input_token_count ?? usage.prompt_token_count
+                );
+                const completion_tokens = (
+                    usage.completion_tokens ?? usage.output_tokens ?? usage.output_text_tokens ??
+                    usage.output_token_count ?? usage.completion_token_count
+                );
+                const total_tokens = (
+                    usage.total_tokens ?? (
+                        Number.isFinite(prompt_tokens) && Number.isFinite(completion_tokens)
+                            ? (prompt_tokens + completion_tokens)
+                            : undefined
+                    )
+                );
                 const totalDuration = endTime - startTime;
-                const tokensPerSecond = total_tokens ? total_tokens / (totalDuration / 1000) : 0;
+                const tokensPerSecond = (typeof total_tokens === 'number' && isFinite(total_tokens))
+                    ? total_tokens / (totalDuration / 1000)
+                    : 0;
 
                 // Capture status/incomplete reason if present
                 const status = data.status || 'unknown';
                 const incompleteReason = data.incomplete_details && data.incomplete_details.reason ? data.incomplete_details.reason : null;
-                const stats = `Status: ${status}${incompleteReason ? ` (${incompleteReason})` : ''} | TTFB: ${ttfb.toFixed(2)} ms | Total Duration: ${totalDuration.toFixed(2)} ms | Prompt Tokens: ${prompt_tokens ?? 'n/a'} | Completion Tokens: ${completion_tokens ?? 'n/a'} | Total Tokens: ${total_tokens ?? 'n/a'} | Tokens/Second: ${tokensPerSecond.toFixed(2)}`;
+                const stats = `Status: ${status}${incompleteReason ? ` (${incompleteReason})` : ''} | TTFB: ${ttfb.toFixed(2)} ms | Total Duration: ${totalDuration.toFixed(2)} ms | Prompt Tokens: ${typeof prompt_tokens === 'number' ? prompt_tokens : 'n/a'} | Completion Tokens: ${typeof completion_tokens === 'number' ? completion_tokens : 'n/a'} | Total Tokens: ${typeof total_tokens === 'number' ? total_tokens : 'n/a'} | Tokens/Second: ${tokensPerSecond.toFixed(2)}`;
 
                 console.log(`Stats for ${model}: ${stats}`);
 
