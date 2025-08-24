@@ -202,6 +202,11 @@ Your task is to take a single Chinese sentence and break it down following the p
             const [showSystemPrompt, setShowSystemPrompt] = useState(false);
             const [models, setModels] = useState(defaultModels);
             const [modelsText, setModelsText] = useState(defaultModels.join(', '));
+            // Model discovery state
+            const [availableModels, setAvailableModels] = useState([]);
+            const [modelsLoading, setModelsLoading] = useState(false);
+            const [modelsError, setModelsError] = useState(null);
+            const [modelFilter, setModelFilter] = useState('');
             const [maxOutputTokens, setMaxOutputTokens] = useState(8192);
 
             // Load API key and sentence, then set isReady
@@ -256,6 +261,59 @@ Your task is to take a single Chinese sentence and break it down following the p
                 }
             }, []);
 
+            // Fetch models when API key becomes available
+            useEffect(() => {
+                const fetchModels = async () => {
+                    if (!apiKey) return;
+                    setModelsLoading(true);
+                    setModelsError(null);
+                    try {
+                        const resp = await fetch('https://api.openai.com/v1/models', {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${apiKey}`
+                            }
+                        });
+                        if (!resp.ok) {
+                            const text = await resp.text();
+                            throw new Error(text || 'Failed to fetch models');
+                        }
+                        const data = await resp.json();
+                        const ids = Array.isArray(data.data) ? data.data
+                            .map((m) => m && (m.id || m.name) )
+                            .filter(Boolean) : [];
+                        // Prefer gpt-5 models early in the list
+                        ids.sort((a, b) => {
+                            const ag = a.includes('gpt-5') ? 0 : 1;
+                            const bg = b.includes('gpt-5') ? 0 : 1;
+                            if (ag !== bg) return ag - bg;
+                            return a.localeCompare(b);
+                        });
+                        setAvailableModels(ids);
+
+                        // If no stored/URL models, default-select gpt-5 family from fetched list
+                        const stored = (localStorage.getItem('openai_models') || '').split(',').map(s => s.trim()).filter(Boolean);
+                        const urlModels = new URLSearchParams(window.location.search).get('models');
+                        const hasOverride = (stored && stored.length) || (urlModels && urlModels.trim().length);
+                        if (!hasOverride) {
+                            const gpt5 = ids.filter(id => id.includes('gpt-5'));
+                            if (gpt5.length) {
+                                setModels(gpt5);
+                                const csv = gpt5.join(', ');
+                                setModelsText(csv);
+                                localStorage.setItem('openai_models', csv);
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Model fetch error:', err);
+                        setModelsError(err.message || String(err));
+                    } finally {
+                        setModelsLoading(false);
+                    }
+                };
+                fetchModels();
+            }, [apiKey]);
+
             // Trigger handleSubmit when isReady changes and sentence is available
             useEffect(() => {
                 const urlParams = new URLSearchParams(window.location.search);
@@ -277,13 +335,36 @@ Your task is to take a single Chinese sentence and break it down following the p
                 setShowApiKey(!showApiKey);
             };
 
-            // Handle models input changes
+            // Handle models input changes (CSV manual entry)
             const handleModelsChange = (e) => {
                 const value = e.target.value;
                 setModelsText(value);
                 const parsed = value.split(',').map(x => x.trim()).filter(Boolean);
                 if (parsed.length) setModels(parsed);
                 localStorage.setItem('openai_models', value);
+            };
+
+            // Handle multiselect change
+            const handleModelSelect = (e) => {
+                const opts = Array.from(e.target.selectedOptions).map(o => o.value);
+                setModels(opts);
+                const csv = opts.join(', ');
+                setModelsText(csv);
+                localStorage.setItem('openai_models', csv);
+            };
+
+            const selectFiltered = () => {
+                const filtered = availableModels.filter(m => m.toLowerCase().includes(modelFilter.toLowerCase()));
+                setModels(filtered);
+                const csv = filtered.join(', ');
+                setModelsText(csv);
+                localStorage.setItem('openai_models', csv);
+            };
+
+            const clearSelection = () => {
+                setModels([]);
+                setModelsText('');
+                localStorage.setItem('openai_models', '');
             };
 
             // Function to copy text to clipboard
@@ -512,16 +593,55 @@ Your task is to take a single Chinese sentence and break it down following the p
                             />
                         </label>
                         <br />
-                        <label>
-                            Models (comma-separated):
-                            <input
-                                type="text"
-                                value={modelsText}
-                                onChange={handleModelsChange}
-                                placeholder="e.g. gpt-5, gpt-5-mini, gpt-5-nano, gpt-5-chat-latest"
-                                style={{ width: '100%' }}
-                            />
-                        </label>
+                        {/* Models selection */}
+                        <div style={{ margin: '10px 0' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <label style={{ marginRight: '8px' }}>Models:</label>
+                                {modelsLoading && <span>(loading models…)</span>}
+                                {modelsError && <span className="error">Failed to fetch models: {modelsError}</span>}
+                            </div>
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'start', flexWrap: 'wrap', marginTop: '6px' }}>
+                                <div style={{ flex: '1 1 320px' }}>
+                                    <input
+                                        type="text"
+                                        placeholder="Filter models (e.g. gpt-5)"
+                                        value={modelFilter}
+                                        onChange={(e) => setModelFilter(e.target.value)}
+                                        style={{ width: '100%', marginBottom: '6px' }}
+                                    />
+                                    <select
+                                        multiple
+                                        size={8}
+                                        value={models}
+                                        onChange={handleModelSelect}
+                                        style={{ width: '100%', minWidth: '320px' }}
+                                    >
+                                        {availableModels
+                                            .filter(m => m.toLowerCase().includes(modelFilter.toLowerCase()))
+                                            .map(id => (
+                                                <option key={id} value={id}>{id}</option>
+                                            ))}
+                                    </select>
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                                        <button type="button" onClick={() => { setModelFilter('gpt-5'); selectFiltered(); }}>Select gpt-5</button>
+                                        <button type="button" onClick={selectFiltered}>Select filtered</button>
+                                        <button type="button" onClick={clearSelection}>Clear</button>
+                                    </div>
+                                </div>
+                                <div style={{ flex: '1 1 280px' }}>
+                                    <label>
+                                        Custom models (CSV):
+                                        <input
+                                            type="text"
+                                            value={modelsText}
+                                            onChange={handleModelsChange}
+                                            placeholder="gpt-5, gpt-5-mini"
+                                            style={{ width: '100%' }}
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                         <br />
                         <label>
                             Enter Sentence:
