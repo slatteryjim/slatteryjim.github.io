@@ -4,36 +4,49 @@ export function createSessionPlan({ pack, stats, drillMode, settings }) {
     const candidateItems = shuffleItems(compatibleItems);
     const randomOrderById = new Map(candidateItems.map((item, index) => [item.id, index]));
     const statsById = new Map(stats.itemStats.map((itemStats) => [itemStats.item.id, itemStats]));
-    const today = new Date().toISOString().slice(0, 10);
-    const newToday = stats.itemStats.filter((itemStats) => itemStats.events.some((event) => event.createdAtIso.startsWith(today) && event.metadata?.wasNewItem)).length;
-    const newLimitRemaining = Math.max(0, settings.dailyNewLimit - newToday);
     const unseen = candidateItems.filter((item) => statsById.get(item.id)?.status === "unseen");
     const dueOrWeak = candidateItems
         .filter((item) => {
         const itemStats = statsById.get(item.id);
         if (!itemStats || itemStats.status === "unseen")
             return false;
-        return itemStats.needScore > 0 || Date.parse(itemStats.dueAtIso) <= Date.now();
+        const isDue = Date.parse(itemStats.dueAtIso) <= Date.now();
+        return isDue || itemStats.status === "learning" || itemStats.status === "slow" || itemStats.needScore > 0;
     })
         .sort((a, b) => compareNeedThenRandom(a, b, statsById, randomOrderById));
-    const learned = candidateItems
-        .filter((item) => (statsById.get(item.id)?.attempts ?? 0) > 0)
+    const fallbackReview = candidateItems
+        .filter((item) => (statsById.get(item.id)?.attempts ?? 0) > 0 && !dueOrWeak.includes(item))
         .sort((a, b) => compareNeedThenRandom(a, b, statsById, randomOrderById));
-    const newItems = unseen.slice(0, Math.max(settings.boardSize, newLimitRemaining));
-    const sessionTargets = uniqueItems([
-        ...dueOrWeak.slice(0, Math.ceil(settings.boardSize * 0.55)),
-        ...learned.slice(0, Math.ceil(settings.boardSize * 0.25)),
-        ...newItems,
-        ...unseen,
-    ]).slice(0, settings.boardSize);
     const prompts = [];
     const broadCount = Math.min(8, settings.sessionLength);
     const focusedCount = Math.max(0, settings.sessionLength - broadCount - 4);
     const recheckCount = Math.max(0, settings.sessionLength - broadCount - focusedCount);
-    const sortedTargets = sortByNeed(sessionTargets, statsById, randomOrderById);
-    prompts.push(...takeCycled(sessionTargets, broadCount, "broad", statsById));
-    prompts.push(...takeCycled(sortedTargets, focusedCount, "focused", statsById));
-    prompts.push(...takeCycled(sortedTargets.slice(0, 6), recheckCount, "recheck", statsById));
+    const reviewCap = unseen.length
+        ? Math.min(dueOrWeak.length, Math.max(1, Math.floor(settings.boardSize / 3)))
+        : Math.min(dueOrWeak.length, settings.boardSize);
+    let unseenCursor = 0;
+    const takeUnseen = (count) => {
+        if (count <= 0)
+            return [];
+        const nextItems = unseen.slice(unseenCursor, unseenCursor + count);
+        unseenCursor += nextItems.length;
+        return nextItems;
+    };
+    const broadItems = fillTargetSet([
+        ...dueOrWeak.slice(0, reviewCap),
+        ...takeUnseen(Math.max(0, Math.min(settings.boardSize, broadCount) - reviewCap)),
+    ], Math.min(settings.boardSize, broadCount), [...dueOrWeak, ...fallbackReview, ...candidateItems]);
+    const focusedBase = dueOrWeak.length
+        ? [...dueOrWeak, ...takeUnseen(Math.max(0, Math.min(settings.boardSize, focusedCount) - dueOrWeak.length))]
+        : takeUnseen(Math.min(settings.boardSize, focusedCount));
+    const focusedItems = fillTargetSet(sortByNeed(focusedBase, statsById, randomOrderById), Math.min(settings.boardSize, focusedCount), [...dueOrWeak, ...fallbackReview, ...candidateItems]);
+    const recheckBase = dueOrWeak.length
+        ? [...dueOrWeak.slice(0, Math.min(6, settings.boardSize)), ...takeUnseen(Math.max(0, recheckCount))]
+        : takeUnseen(Math.min(settings.boardSize, recheckCount));
+    const recheckItems = fillTargetSet(sortByNeed(recheckBase, statsById, randomOrderById), Math.min(settings.boardSize, recheckCount), [...dueOrWeak, ...fallbackReview, ...candidateItems]);
+    prompts.push(...takeCycled(broadItems, broadCount, "broad", statsById));
+    prompts.push(...takeCycled(focusedItems, focusedCount, "focused", statsById));
+    prompts.push(...takeCycled(recheckItems, recheckCount, "recheck", statsById));
     return prompts.map((prompt, index) => ({
         ...prompt,
         index,
@@ -67,6 +80,11 @@ function takeCycled(items, count, phase, statsById) {
 }
 function uniqueItems(items) {
     return Array.from(new Map(items.map((item) => [item.id, item])).values());
+}
+function fillTargetSet(baseItems, targetSize, fallbackItems) {
+    if (targetSize <= 0)
+        return [];
+    return uniqueItems([...baseItems, ...fallbackItems]).slice(0, targetSize);
 }
 function sortByNeed(items, statsById, randomOrderById) {
     return [...items].sort((a, b) => compareNeedThenRandom(a, b, statsById, randomOrderById));

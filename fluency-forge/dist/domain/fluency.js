@@ -115,11 +115,12 @@ function computeDueAtIso(lastEvent, uniqueFastDays, recentCorrectRate) {
 function computeNeedScore({ sorted, recent, status, dueAtIso, recentMedianLatencyMs, }, thresholdMs) {
     if (status === "unseen")
         return 0;
-    const due = Date.parse(dueAtIso) <= Date.now() ? 4 : 0;
+    const isDue = Date.parse(dueAtIso) <= Date.now();
+    const due = isDue ? 4 : 0;
     const wrong = recent.filter((event) => !event.correct).length * 5;
     const slow = recentMedianLatencyMs && recentMedianLatencyMs > thresholdMs ? 3 : 0;
     const lastEvent = sorted.at(-1);
-    const stale = lastEvent
+    const stale = isDue && lastEvent
         ? Math.min(4, (Date.now() - Date.parse(lastEvent.createdAtIso)) / DAY_MS)
         : 0;
     return due + wrong + slow + stale;

@@ -127,6 +127,7 @@ function renderDrill(pack) {
         ${promptMarkup(item, pack, prompt)}
         <p>Tap the ${answerLabel(state.settings.drillMode)}</p>
         ${feedback ? feedbackPill(feedback) : ""}
+        ${feedback && !feedback.correct ? feedbackDetail(item, feedback) : ""}
         ${feedback?.correct && isLastPrompt ? `<button class="report-action" data-action="finish">View Report</button>` : ""}
       </section>
 
@@ -594,6 +595,25 @@ function feedbackPill(feedback) {
         ? feedback.latencyMs <= state.settings.thresholdMs ? "Fast!" : "Correct"
         : "Tap the correct answer";
     return `<div class="feedback-pill ${feedback.correct ? "good" : "bad"}">${label} ${formatMs(feedback.latencyMs)}</div>`;
+}
+function feedbackDetail(item, feedback) {
+    const meaning = item.meanings?.slice(0, 2).join("; ");
+    const pinyin = item.type === "character"
+        ? item.pinyin.join(", ")
+        : item.type === "word"
+            ? item.pinyin
+            : "";
+    const details = [
+        pinyin && pinyin !== feedback.expectedAnswer ? pinyin : "",
+        meaning && meaning !== feedback.expectedAnswer ? meaning : "",
+    ].filter(Boolean);
+    return `
+    <div class="feedback-detail">
+      <span>Correct answer</span>
+      <strong>${escapeHtml(feedback.expectedAnswer)}</strong>
+      ${details.map((detail) => `<small>${escapeHtml(detail)}</small>`).join("")}
+    </div>
+  `;
 }
 function answerLabelMarkup(choice) {
     return choice
