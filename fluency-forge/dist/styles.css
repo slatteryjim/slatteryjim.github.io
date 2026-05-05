@@ -488,8 +488,8 @@ button {
 .note-head {
   position: absolute;
   left: 50%;
-  width: 56px;
-  height: 38px;
+  width: 34px;
+  height: 20px;
   border-radius: 50%;
   background: #061d47;
   transform: translate(-50%, -50%) rotate(-18deg);
@@ -497,8 +497,8 @@ button {
 
 .ledger {
   position: absolute;
-  left: calc(50% - 42px);
-  width: 84px;
+  left: calc(50% - 30px);
+  width: 60px;
   height: 5px;
   border-radius: 999px;
   background: #061d47;
@@ -557,18 +557,53 @@ button {
 }
 
 .answer-board button {
+  --answer-font-size: clamp(1.4rem, 3vw, 3rem);
   min-height: 172px;
   padding: 12px;
   border: 2px solid #ded2bd;
   border-radius: 8px;
   background: #fffdf8;
   color: #071f4c;
-  font-size: clamp(1.4rem, 3vw, 3rem);
+  font-size: var(--answer-font-size);
   font-weight: 950;
   line-height: 1.08;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  overflow-wrap: normal;
+  word-break: normal;
   cursor: pointer;
   box-shadow: 0 6px 10px rgba(69, 47, 17, 0.12);
+}
+
+.answer-board button:disabled {
+  cursor: default;
+}
+
+.answer-board button.answer-size-short {
+  --answer-font-size: clamp(1.4rem, 3vw, 3rem);
+}
+
+.answer-board button.answer-size-medium {
+  --answer-font-size: clamp(1.2rem, 2.55vw, 2.55rem);
+}
+
+.answer-board button.answer-size-long {
+  --answer-font-size: clamp(1rem, 2.05vw, 2.15rem);
+}
+
+.answer-board button.answer-size-xlong {
+  --answer-font-size: clamp(0.84rem, 1.65vw, 1.75rem);
+}
+
+.answer-label {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 0.18em;
+  max-width: 100%;
+}
+
+.answer-token {
+  white-space: nowrap;
 }
 
 .answer-board button.correct {
@@ -992,7 +1027,7 @@ button {
 
   .answer-board button {
     min-height: 132px;
-    font-size: clamp(1.8rem, 5vw, 2.7rem);
+    font-size: var(--answer-font-size);
   }
 
   .progress-dock {
@@ -1218,7 +1253,7 @@ button {
   .answer-board button {
     min-height: 70px;
     padding: 8px;
-    font-size: clamp(1.25rem, 8vw, 2rem);
+    font-size: var(--answer-font-size);
   }
 
   .progress-dock {

@@ -127,7 +127,7 @@ function renderDrill(pack) {
         ${promptMarkup(item, pack, prompt)}
         <p>Tap the ${answerLabel(state.settings.drillMode)}</p>
         ${feedback ? feedbackPill(feedback) : ""}
-        ${feedback && isLastPrompt ? `<button class="report-action" data-action="finish">View Report</button>` : ""}
+        ${feedback?.correct && isLastPrompt ? `<button class="report-action" data-action="finish">View Report</button>` : ""}
       </section>
 
       <section class="answer-board">
@@ -277,9 +277,16 @@ function startSession() {
     render();
 }
 function submitAnswer(selectedAnswer) {
-    if (!activeSession || activeSession.feedback)
+    if (!activeSession)
         return;
     const entry = activeSession.plan[activeSession.index];
+    const expectedAnswer = getExpectedAnswer(entry.item, state.settings.drillMode);
+    if (activeSession.feedback) {
+        if (!activeSession.feedback.correct && selectedAnswer === expectedAnswer) {
+            advanceAfterFeedback(260);
+        }
+        return;
+    }
     const isLastPrompt = activeSession.index === activeSession.plan.length - 1;
     const event = createTrialEvent({
         sessionId: activeSession.id,
@@ -301,6 +308,11 @@ function submitAnswer(selectedAnswer) {
     activeSession.pendingReport = isLastPrompt;
     saveState(state);
     render();
+    if (event.correct) {
+        advanceAfterFeedback(520);
+    }
+}
+function advanceAfterFeedback(delayMs) {
     window.setTimeout(() => {
         if (!activeSession)
             return;
@@ -317,7 +329,7 @@ function submitAnswer(selectedAnswer) {
             return;
         }
         render();
-    }, event.correct ? 520 : 900);
+    }, delayMs);
 }
 function finishSession() {
     if (activeSession) {
@@ -570,13 +582,42 @@ function answerButton(choice, feedback, expectedAnswer) {
     const className = feedback
         ? correct ? "correct" : selected ? "wrong" : "muted"
         : "";
-    return `<button class="${className}" data-answer="${escapeAttr(choice)}">${escapeHtml(choice)}</button>`;
+    const locked = feedback?.correct ? "disabled" : "";
+    return `
+    <button class="${className} ${answerSizeClass(choice)}" data-answer="${escapeAttr(choice)}" ${locked}>
+      <span class="answer-label">${answerLabelMarkup(choice)}</span>
+    </button>
+  `;
 }
 function feedbackPill(feedback) {
     const label = feedback.correct
         ? feedback.latencyMs <= state.settings.thresholdMs ? "Fast!" : "Correct"
-        : "Try again";
+        : "Tap the correct answer";
     return `<div class="feedback-pill ${feedback.correct ? "good" : "bad"}">${label} ${formatMs(feedback.latencyMs)}</div>`;
+}
+function answerLabelMarkup(choice) {
+    return choice
+        .split(/(\s+)/)
+        .map((part) => {
+        if (!part.trim())
+            return escapeHtml(part);
+        return `<span class="answer-token">${escapeHtml(part)}</span>`;
+    })
+        .join("");
+}
+function answerSizeClass(choice) {
+    const longestToken = choice
+        .split(/\s+/)
+        .reduce((longest, token) => Math.max(longest, Array.from(token).length), 0);
+    const totalLength = Array.from(choice.replace(/\s+/g, "")).length;
+    const size = Math.max(longestToken, Math.ceil(totalLength / 1.6));
+    if (size <= 3)
+        return "answer-size-short";
+    if (size <= 5)
+        return "answer-size-medium";
+    if (size <= 8)
+        return "answer-size-long";
+    return "answer-size-xlong";
 }
 function weakItem(itemStats) {
     return `
