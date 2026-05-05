@@ -1,0 +1,817 @@
+import { contentPacks, getContentPack } from "./content/index.js";
+import { derivePackStats, getTodayEvents } from "./domain/fluency.js";
+import { buildAnswerBoard, createSessionPlan, getItemsForBatch } from "./domain/sessionPlanning.js";
+import { createTrialEvent, getExpectedAnswer, getPrompt } from "./domain/trials.js";
+import { loadState, resetState, saveState } from "./storage/localStore.js";
+const app = getRequiredAppRoot();
+let state = loadState();
+let view = "home";
+let activeSession = null;
+render();
+function render() {
+    const pack = getContentPack(state.settings.selectedPackId);
+    normalizeDrillModeForPack(pack);
+    const stats = currentStats(pack);
+    if (view === "drill" && activeSession && activeSession.index >= activeSession.plan.length) {
+        view = "results";
+    }
+    if (view === "drill" && activeSession) {
+        renderDrill(pack);
+        return;
+    }
+    if (view === "results") {
+        renderResults(pack, stats);
+        return;
+    }
+    renderHome(pack, stats);
+}
+function renderHome(pack, stats) {
+    app.innerHTML = pageShell(`
+    <main class="home-grid">
+      <section class="welcome-panel">
+        <div class="mascot-badge">字</div>
+        <h1>Ready for today's<br><span>5-minute fluency quest?</span></h1>
+        <p>Build automatic recognition with quick daily drills.</p>
+        <button class="primary-action" data-action="start">Start Session</button>
+      </section>
+
+      <section class="stat-stack">
+        ${statTile("★", "Fluent", `${stats.fluentCount}`, "items")}
+        ${statTile("⚡", "Need Practice", `${stats.buckets.learning + stats.buckets.slow}`, "items")}
+        ${statTile("⏱", "Median", formatMs(stats.medianLatencyMs), "response")}
+      </section>
+
+      <section class="map-panel">
+        <div class="section-title">
+          <h2>Content Packs</h2>
+          <span>${pack.items.length} items loaded</span>
+        </div>
+        <div class="pack-row">
+          ${contentPacks.map((contentPack) => packCard(contentPack, stats)).join("")}
+        </div>
+      </section>
+
+      <section class="control-panel">
+        <div class="section-title">
+          <h2>Today's Drill</h2>
+          <span>${modeLabel(state.settings.drillMode)}</span>
+        </div>
+        <div class="segmented">
+          ${availableModesForPack(pack).map(([mode, label]) => modeButton(mode, label)).join("")}
+        </div>
+      </section>
+
+      <section class="coverage-panel">
+        ${coverageBar(stats)}
+      </section>
+    </main>
+  `);
+    bindCommonActions();
+    app.querySelector("[data-action='start']")?.addEventListener("click", startSession);
+    app.querySelectorAll("[data-pack]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const packId = button.dataset.pack ?? state.settings.selectedPackId;
+            updateSettings({
+                selectedPackId: packId,
+                drillMode: defaultModeForPack(getContentPack(packId)),
+            });
+        });
+    });
+    app.querySelectorAll("[data-mode]").forEach((button) => {
+        button.addEventListener("click", () => {
+            if (isDrillMode(button.dataset.mode)) {
+                updateSettings({ drillMode: button.dataset.mode });
+            }
+        });
+    });
+}
+function renderDrill(pack) {
+    if (!activeSession)
+        return;
+    const entry = activeSession.plan[activeSession.index];
+    if (!entry) {
+        finishSession();
+        return;
+    }
+    const item = entry.item;
+    const answer = getExpectedAnswer(item, state.settings.drillMode);
+    const prompt = getPrompt(item);
+    const elapsed = Math.max(0, Math.round((performance.now() - activeSession.startedAtMs) / 1000));
+    const feedback = activeSession.feedback;
+    const isLastPrompt = activeSession.index === activeSession.plan.length - 1;
+    const roundProgress = getRoundProgress(activeSession.plan, activeSession.index);
+    if (activeSession.currentBatchId !== entry.miniBatchId) {
+        activeSession.currentBatchId = entry.miniBatchId;
+        activeSession.answerBoard = buildAnswerBoard({
+            pack,
+            drillMode: state.settings.drillMode,
+            targetItems: getItemsForBatch(activeSession.plan, activeSession.index),
+            boardSize: state.settings.boardSize,
+        });
+    }
+    if (!activeSession.renderedAtMs) {
+        activeSession.renderedAtMs = performance.now();
+    }
+    app.innerHTML = pageShell(`
+    <main class="drill-layout">
+      <aside class="goal-panel">
+        <div class="goal-ring">${activeSession.index + 1}<small>/${activeSession.plan.length}</small></div>
+        <h2>${phaseLabel(entry.phase)}</h2>
+        <p>Round ${roundProgress.index} of ${roundProgress.total}: ${roundProgress.current}/${roundProgress.count}</p>
+        <p>${phaseDescription(entry.phase)}</p>
+        <p>${entry.wasNewItem ? "New item" : "Review item"}</p>
+      </aside>
+
+      <section class="prompt-card">
+        <button class="sound-button" aria-label="Audio placeholder">▶</button>
+        ${promptMarkup(item, pack, prompt)}
+        <p>Tap the ${answerLabel(state.settings.drillMode)}</p>
+        ${feedback ? feedbackPill(feedback) : ""}
+        ${feedback && isLastPrompt ? `<button class="report-action" data-action="finish">View Report</button>` : ""}
+      </section>
+
+      <section class="answer-board">
+        ${activeSession.answerBoard.map((choice) => answerButton(choice, feedback, answer)).join("")}
+      </section>
+
+      <section class="progress-dock">
+        <div>
+          <strong>Practice Progress</strong>
+          <span>${modeLabel(state.settings.drillMode)} · fixed board for this round</span>
+        </div>
+        <div class="progress-track">
+          <span style="width:${((activeSession.index + 1) / activeSession.plan.length) * 100}%"></span>
+        </div>
+        <div class="timer-pill">⏱ ${formatClock(elapsed)}</div>
+      </section>
+    </main>
+  `);
+    bindCommonActions();
+    app.querySelectorAll("[data-answer]").forEach((button) => {
+        button.addEventListener("click", () => submitAnswer(button.dataset.answer ?? ""));
+    });
+    app.querySelectorAll("[data-action='finish']").forEach((button) => {
+        button.addEventListener("click", finishSession);
+    });
+}
+function renderResults(pack, stats) {
+    const sessionEvents = activeSession?.events ?? getTodayEvents(relevantEvents(pack));
+    const itemsById = new Map(pack.items.map((item) => [item.id, item]));
+    const correct = sessionEvents.filter((event) => event.correct).length;
+    const wrong = sessionEvents.filter((event) => !event.correct).length;
+    const fast = sessionEvents.filter((event) => event.correct && event.latencyMs <= state.settings.thresholdMs).length;
+    const slow = sessionEvents.filter((event) => event.correct && event.latencyMs > state.settings.thresholdMs).length;
+    const medianLatencyMs = median(sessionEvents.filter((event) => event.correct).map((event) => event.latencyMs));
+    const practiced = new Set(sessionEvents.map((event) => event.itemId)).size;
+    const sortedCorrect = sessionEvents
+        .filter((event) => event.correct && typeof event.latencyMs === "number")
+        .sort((a, b) => a.latencyMs - b.latencyMs);
+    const fastest = sortedCorrect.slice(0, 6);
+    const slowest = [...sortedCorrect].reverse().slice(0, 6);
+    const incorrect = sessionEvents.filter((event) => !event.correct).slice(-6);
+    app.innerHTML = pageShell(`
+    <main class="results-layout">
+      <section class="celebration-panel">
+        <div class="treasure">★</div>
+        <h1>Session complete!</h1>
+        <p>You practiced ${practiced} items. Fast means correct under ${formatMs(state.settings.thresholdMs)}.</p>
+        <button class="primary-action" data-action="continue">Continue</button>
+      </section>
+
+      <section class="results-panel">
+        <div class="section-title">
+          <h2>Your Results</h2>
+          <span>${pack.title}</span>
+        </div>
+        <div class="result-grid">
+          ${resultCard("汉", sessionEvents.length, "attempts")}
+          ${resultCard("✓", percent(correct / Math.max(1, sessionEvents.length)), "correct")}
+          ${resultCard("⚡", fast, "fast")}
+          ${resultCard("…", slow, "slow")}
+          ${resultCard("×", wrong, "wrong")}
+          ${resultCard("⏱", formatMs(medianLatencyMs), "median")}
+          ${resultCard("🔥", computeStreak(), "day streak")}
+          ${resultCard("★", percent(fast / Math.max(1, sessionEvents.length)), "fast rate")}
+        </div>
+        ${coverageBar(stats)}
+      </section>
+
+      <section class="session-panel">
+        <div class="section-title">
+          <h2>Fastest</h2>
+          <span>automatic retrieval</span>
+        </div>
+        <div class="timing-list">${timingList(fastest, itemsById)}</div>
+      </section>
+
+      <section class="session-panel">
+        <div class="section-title">
+          <h2>Slowest</h2>
+          <span>good targets for fluency</span>
+        </div>
+        <div class="timing-list">${timingList(slowest, itemsById)}</div>
+      </section>
+
+      <section class="session-panel">
+        <div class="section-title">
+          <h2>Wrong</h2>
+          <span>repair first</span>
+        </div>
+        <div class="timing-list">${incorrect.length ? timingList(incorrect, itemsById) : "<p>No wrong answers this session.</p>"}</div>
+      </section>
+
+      <section class="weak-panel">
+        <div class="section-title">
+          <h2>Next Practice Targets</h2>
+          <span>slow, due, or uncertain</span>
+        </div>
+        <div class="weak-list">
+          ${stats.itemStats
+        .filter((itemStats) => itemStats.status !== "unseen")
+        .sort((a, b) => b.needScore - a.needScore)
+        .slice(0, 8)
+        .map((itemStats) => weakItem(itemStats))
+        .join("") || "<p>No weak items yet. Start another session to gather more signal.</p>"}
+        </div>
+      </section>
+
+      <section class="matrix-panel">
+        <div class="section-title">
+          <h2>${pack.id.includes("characters") ? "HSK1 Character Matrix" : "HSK1 Word Matrix"}</h2>
+          <span>${stats.totalItems} items</span>
+        </div>
+        ${knowledgeMatrix(stats, pack)}
+      </section>
+    </main>
+  `);
+    bindCommonActions();
+    app.querySelector("[data-action='continue']")?.addEventListener("click", () => {
+        activeSession = null;
+        view = "home";
+        scrollToTop();
+        render();
+    });
+}
+function startSession() {
+    const pack = getContentPack(state.settings.selectedPackId);
+    const stats = currentStats(pack);
+    activeSession = {
+        id: crypto.randomUUID(),
+        startedAtMs: performance.now(),
+        plan: createSessionPlan({
+            pack,
+            stats,
+            drillMode: state.settings.drillMode,
+            settings: state.settings,
+        }),
+        index: 0,
+        events: [],
+        answerBoard: [],
+        currentBatchId: null,
+        renderedAtMs: 0,
+        feedback: null,
+        pendingReport: false,
+    };
+    view = "drill";
+    scrollToTop();
+    render();
+}
+function submitAnswer(selectedAnswer) {
+    if (!activeSession || activeSession.feedback)
+        return;
+    const entry = activeSession.plan[activeSession.index];
+    const isLastPrompt = activeSession.index === activeSession.plan.length - 1;
+    const event = createTrialEvent({
+        sessionId: activeSession.id,
+        contentPackId: state.settings.selectedPackId,
+        item: entry.item,
+        drillMode: state.settings.drillMode,
+        selectedAnswer,
+        answerChoices: activeSession.answerBoard,
+        renderedAtMs: activeSession.renderedAtMs,
+        submittedAtMs: performance.now(),
+        thresholdMs: state.settings.thresholdMs,
+        phase: entry.phase,
+        miniBatchId: entry.miniBatchId,
+        wasNewItem: entry.wasNewItem,
+    });
+    state.trialEvents.push(event);
+    activeSession.events.push(event);
+    activeSession.feedback = event;
+    activeSession.pendingReport = isLastPrompt;
+    saveState(state);
+    render();
+    window.setTimeout(() => {
+        if (!activeSession)
+            return;
+        if (activeSession.pendingReport) {
+            finishSession();
+            return;
+        }
+        maybeAdaptPlanAfterBroadCheck();
+        activeSession.index += 1;
+        activeSession.renderedAtMs = 0;
+        activeSession.feedback = null;
+        if (activeSession.index >= activeSession.plan.length) {
+            finishSession();
+            return;
+        }
+        render();
+    }, event.correct ? 520 : 900);
+}
+function finishSession() {
+    if (activeSession) {
+        activeSession.completedAtIso = new Date().toISOString();
+        activeSession.index = activeSession.plan.length;
+        activeSession.feedback = null;
+        activeSession.pendingReport = false;
+    }
+    view = "results";
+    scrollToTop();
+    render();
+}
+function maybeAdaptPlanAfterBroadCheck() {
+    if (!activeSession)
+        return;
+    const currentEntry = activeSession.plan[activeSession.index];
+    const nextEntry = activeSession.plan[activeSession.index + 1];
+    if (currentEntry?.phase !== "broad" || nextEntry?.phase !== "focused")
+        return;
+    const weakIds = new Set(activeSession.events
+        .filter((event) => event.metadata.phase === "broad" &&
+        (!event.correct || event.latencyMs > state.settings.thresholdMs))
+        .map((event) => event.itemId));
+    if (weakIds.size === 0)
+        return;
+    const itemById = new Map(activeSession.plan.map((entry) => [entry.item.id, entry.item]));
+    const newFlagById = new Map(activeSession.plan.map((entry) => [entry.item.id, entry.wasNewItem]));
+    const weakItems = Array.from(weakIds)
+        .map((itemId) => itemById.get(itemId))
+        .filter((item) => Boolean(item));
+    if (weakItems.length === 0)
+        return;
+    const prefix = activeSession.plan.slice(0, activeSession.index + 1);
+    const oldFocusedItems = uniqueItems(activeSession.plan.filter((entry) => entry.phase === "focused").map((entry) => entry.item));
+    const oldRecheckItems = uniqueItems(activeSession.plan.filter((entry) => entry.phase === "recheck").map((entry) => entry.item));
+    const focusedCount = activeSession.plan.filter((entry) => entry.phase === "focused").length;
+    const recheckCount = activeSession.plan.filter((entry) => entry.phase === "recheck").length;
+    const focusedEntries = cycleEntries(uniqueItems([...weakItems, ...oldFocusedItems]), focusedCount, "focused", newFlagById);
+    const recheckEntries = cycleEntries(uniqueItems([...weakItems, ...oldRecheckItems]), recheckCount, "recheck", newFlagById);
+    activeSession.plan = [...prefix, ...focusedEntries, ...recheckEntries].map((entry, index) => ({
+        ...entry,
+        index,
+    }));
+}
+function updateSettings(nextSettings) {
+    state.settings = { ...state.settings, ...nextSettings };
+    normalizeDrillModeForPack(getContentPack(state.settings.selectedPackId));
+    saveState(state);
+    render();
+}
+function currentStats(pack) {
+    return derivePackStats(pack.items, relevantEvents(pack), state.settings.drillMode, state.settings.thresholdMs);
+}
+function relevantEvents(pack) {
+    return state.trialEvents.filter((event) => event.contentPackId === pack.id);
+}
+function pageShell(content) {
+    return `
+    <div class="app-shell view-${view}">
+      <header class="top-bar">
+        <button class="brand" data-action="home" aria-label="Home">
+          <span>Fluency</span><strong>Forge</strong>
+        </button>
+        <div class="profile-chip"><span>字</span>${escapeHtml(state.settings.learnerName)}</div>
+        <div class="streak-chip">🔥 ${computeStreak()} day streak</div>
+        <button class="ghost-button" data-action="results">Results</button>
+        <button class="ghost-button" data-action="export">Export</button>
+        <button class="ghost-button" data-action="import">Import</button>
+        <button class="ghost-button" data-action="reset">Reset</button>
+        <input class="hidden-input" type="file" accept="application/json" data-role="import-file">
+      </header>
+      ${content}
+    </div>
+  `;
+}
+function bindCommonActions() {
+    app.querySelectorAll("[data-action='home']").forEach((button) => {
+        button.addEventListener("click", () => {
+            view = "home";
+            scrollToTop();
+            render();
+        });
+    });
+    app.querySelectorAll("[data-action='results']").forEach((button) => {
+        button.addEventListener("click", () => {
+            view = "results";
+            scrollToTop();
+            render();
+        });
+    });
+    app.querySelectorAll("[data-action='reset']").forEach((button) => {
+        button.addEventListener("click", () => {
+            if (!confirm("Clear all local Fluency Forge progress?"))
+                return;
+            resetState();
+            state = loadState();
+            activeSession = null;
+            view = "home";
+            scrollToTop();
+            render();
+        });
+    });
+    app.querySelectorAll("[data-action='export']").forEach((button) => {
+        button.addEventListener("click", exportProgress);
+    });
+    app.querySelectorAll("[data-action='import']").forEach((button) => {
+        button.addEventListener("click", () => {
+            app.querySelector("[data-role='import-file']")?.click();
+        });
+    });
+    app.querySelectorAll("[data-role='import-file']").forEach((input) => {
+        input.addEventListener("change", () => {
+            const file = input.files?.[0];
+            input.value = "";
+            if (file)
+                void importProgress(file);
+        });
+    });
+}
+function exportProgress() {
+    const backup = {
+        exportedAtIso: new Date().toISOString(),
+        appVersion: "0.1.0",
+        state,
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `fluency-forge-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+}
+async function importProgress(file) {
+    try {
+        const parsed = JSON.parse(await file.text());
+        const importedState = extractImportedState(parsed);
+        if (!importedState) {
+            alert("That file does not look like a Fluency Forge backup.");
+            return;
+        }
+        state = importedState;
+        activeSession = null;
+        view = "home";
+        saveState(state);
+        scrollToTop();
+        render();
+    }
+    catch (error) {
+        console.error(error);
+        alert("Could not import that backup file.");
+    }
+}
+function extractImportedState(value) {
+    if (!value || typeof value !== "object")
+        return null;
+    const candidate = "state" in value ? value.state : value;
+    if (!candidate || typeof candidate !== "object")
+        return null;
+    const maybeState = candidate;
+    if (!maybeState.settings || !Array.isArray(maybeState.trialEvents))
+        return null;
+    return {
+        settings: {
+            ...state.settings,
+            ...maybeState.settings,
+            drillMode: isDrillMode(maybeState.settings.drillMode)
+                ? maybeState.settings.drillMode
+                : state.settings.drillMode,
+        },
+        trialEvents: maybeState.trialEvents,
+    };
+}
+function packCard(pack, stats) {
+    const selected = pack.id === state.settings.selectedPackId;
+    return `
+    <button class="pack-card ${selected ? "selected" : ""}" data-pack="${pack.id}">
+      <span class="pack-flag">${packIcon(pack)}</span>
+      <strong>${packTitle(pack)}</strong>
+      <small>${selected ? `${stats.fluentCount} fluent` : `${pack.items.length} items`}</small>
+    </button>
+  `;
+}
+function modeButton(mode, label) {
+    return `
+    <button class="${state.settings.drillMode === mode ? "active" : ""}" data-mode="${mode}">
+      ${label}
+    </button>
+  `;
+}
+function statTile(icon, title, value, label) {
+    return `
+    <article class="stat-tile">
+      <span>${icon}</span>
+      <div><strong>${value}</strong><small>${title}<br>${label}</small></div>
+    </article>
+  `;
+}
+function resultCard(icon, value, label) {
+    return `
+    <article class="result-card">
+      <span>${icon}</span>
+      <strong>${value}</strong>
+      <small>${label}</small>
+    </article>
+  `;
+}
+function timingList(events, itemsById) {
+    if (!events.length)
+        return "<p>No timing data yet.</p>";
+    return events.map((event) => {
+        const item = itemsById.get(event.itemId);
+        const tone = !event.correct ? "wrong" : event.latencyMs <= state.settings.thresholdMs ? "fast" : "slow";
+        return `
+      <div class="timing-row ${tone}">
+        <strong>${escapeHtml(item?.simplified ?? event.promptText)}</strong>
+        <span>${escapeHtml(event.expectedAnswer)}</span>
+        <small>${event.correct ? formatMs(event.latencyMs) : `picked ${escapeHtml(event.selectedAnswer)}`}</small>
+      </div>
+    `;
+    }).join("");
+}
+function coverageBar(stats) {
+    const total = Math.max(1, stats.totalItems);
+    const parts = [
+        ["unseen", "Unseen", stats.buckets.unseen],
+        ["learning", "Learning", stats.buckets.learning],
+        ["slow", "Slow", stats.buckets.slow],
+        ["fluent", "Fluent Today", stats.buckets.fluentToday],
+        ["stable", "Stable", stats.buckets.stableFluent],
+    ];
+    return `
+    <div class="section-title">
+      <h2>Coverage</h2>
+      <span>${percent(stats.coverageRate)} overall</span>
+    </div>
+    <div class="coverage-bar">
+      ${parts.map(([key, , count]) => `<span class="${key}" style="width:${(count / total) * 100}%"></span>`).join("")}
+    </div>
+    <div class="coverage-legend">
+      ${parts.map(([key, label, count]) => `
+        <div><span class="dot ${key}"></span><strong>${count}</strong><small>${label}</small></div>
+      `).join("")}
+    </div>
+  `;
+}
+function answerButton(choice, feedback, expectedAnswer) {
+    const selected = feedback?.selectedAnswer === choice;
+    const correct = choice === expectedAnswer;
+    const className = feedback
+        ? correct ? "correct" : selected ? "wrong" : "muted"
+        : "";
+    return `<button class="${className}" data-answer="${escapeAttr(choice)}">${escapeHtml(choice)}</button>`;
+}
+function feedbackPill(feedback) {
+    const label = feedback.correct
+        ? feedback.latencyMs <= state.settings.thresholdMs ? "Fast!" : "Correct"
+        : "Try again";
+    return `<div class="feedback-pill ${feedback.correct ? "good" : "bad"}">${label} ${formatMs(feedback.latencyMs)}</div>`;
+}
+function weakItem(itemStats) {
+    return `
+    <div class="weak-item">
+      <strong>${escapeHtml(itemStats.item.simplified)}</strong>
+      <span>${escapeHtml(getExpectedAnswer(itemStats.item, state.settings.drillMode))}</span>
+      <small>${itemStats.status.replace(/[A-Z]/g, (letter) => ` ${letter.toLowerCase()}`)}</small>
+    </div>
+  `;
+}
+function knowledgeMatrix(stats, pack) {
+    const isCharacters = pack.id.includes("characters");
+    const matrixClass = isCharacters ? "character-grid" : pack.domain === "chinese" ? "word-grid" : "generic-grid";
+    return `
+    <div class="matrix-legend">
+      <span><i class="dot unseen"></i>Unlearned</span>
+      <span><i class="dot learning"></i>Wrong / learning</span>
+      <span><i class="dot slow"></i>Learned but slow</span>
+      <span><i class="dot fluentToday"></i>Fluent today</span>
+      <span><i class="dot stableFluent"></i>Stable fluent</span>
+    </div>
+    <div class="knowledge-grid ${matrixClass}">
+      ${stats.itemStats.map((itemStats) => `
+        <div
+          class="knowledge-cell ${itemStats.status}"
+          title="${escapeAttr(`${itemStats.item.simplified}: ${statusLabel(itemStats.status)} (${itemStats.attempts} attempts)`)}"
+        >
+          ${escapeHtml(matrixLabel(itemStats.item))}
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+function statusLabel(status) {
+    return {
+        unseen: "unlearned",
+        learning: "wrong / learning",
+        slow: "learned but slow",
+        fluentToday: "fluent today",
+        stableFluent: "stable fluent",
+    }[status] ?? status;
+}
+function phaseLabel(phase) {
+    return {
+        broad: "Broad Check",
+        focused: "Focused Drill",
+        recheck: "Recheck",
+    }[phase] ?? "Practice";
+}
+function phaseDescription(phase) {
+    return {
+        broad: "Probe a wider set.",
+        focused: "Drill the highest-need items.",
+        recheck: "Retest after a short delay.",
+    }[phase] ?? "Practice";
+}
+function getRoundProgress(plan, currentIndex) {
+    const phases = Array.from(new Set(plan.map((entry) => entry.phase)));
+    const phase = plan[currentIndex]?.phase ?? phases[0];
+    const phaseEntries = plan.filter((entry) => entry.phase === phase);
+    return {
+        index: phases.indexOf(phase) + 1,
+        total: phases.length,
+        current: phaseEntries.findIndex((entry) => entry.index === currentIndex) + 1,
+        count: phaseEntries.length,
+    };
+}
+function cycleEntries(items, count, phase, newFlagById) {
+    if (items.length === 0 || count <= 0)
+        return [];
+    return Array.from({ length: count }, (_, offset) => {
+        const item = items[offset % items.length];
+        return {
+            item,
+            phase,
+            wasNewItem: newFlagById.get(item.id) ?? false,
+            index: 0,
+            miniBatchId: `${phase}-board`,
+        };
+    });
+}
+function uniqueItems(items) {
+    return Array.from(new Map(items.map((item) => [item.id, item])).values());
+}
+function modeLabel(mode) {
+    return {
+        char_to_pinyin: "Character → pinyin",
+        char_to_meaning: "Character → meaning",
+        word_to_pinyin: "Word → pinyin",
+        word_to_meaning: "Word → meaning",
+        prompt_to_answer: "Prompt → answer",
+    }[mode];
+}
+function availableModesForPack(pack) {
+    if (pack.domain && pack.domain !== "chinese") {
+        return [["prompt_to_answer", "Prompt → answer"]];
+    }
+    return pack.id.includes("words")
+        ? [
+            ["word_to_pinyin", "词 → pinyin"],
+            ["word_to_meaning", "词 → meaning"],
+        ]
+        : [
+            ["char_to_pinyin", "字 → pinyin"],
+            ["char_to_meaning", "字 → meaning"],
+        ];
+}
+function normalizeDrillModeForPack(pack) {
+    const availableModes = availableModesForPack(pack).map(([mode]) => mode);
+    if (!availableModes.includes(state.settings.drillMode)) {
+        state.settings.drillMode = availableModes[0];
+        saveState(state);
+    }
+}
+function defaultModeForPack(pack) {
+    return availableModesForPack(pack)[0][0];
+}
+function answerLabel(mode) {
+    if (mode.endsWith("_to_pinyin"))
+        return "pinyin";
+    if (mode.endsWith("_to_meaning"))
+        return "meaning";
+    return "answer";
+}
+function packIcon(pack) {
+    if (pack.domain === "arithmetic")
+        return pack.id.includes("multiplication") ? "×" : "+";
+    if (pack.domain === "music")
+        return "♪";
+    return pack.id.includes("words") ? "词" : "字";
+}
+function packTitle(pack) {
+    if (pack.domain === "arithmetic" || pack.domain === "music")
+        return pack.title;
+    return pack.id.includes("words") ? "Level 2: HSK1 Words" : "Level 1: HSK1 Characters";
+}
+function matrixLabel(item) {
+    if (item.type === "generic")
+        return item.display ?? item.simplified;
+    return item.simplified;
+}
+function promptMarkup(item, pack, prompt) {
+    if (pack.domain === "music" && item.type === "generic") {
+        return staffPromptMarkup(item);
+    }
+    return `<div class="prompt-text ${pack.domain ? `domain-${pack.domain}` : ""}">${escapeHtml(prompt)}</div>`;
+}
+function staffPromptMarkup(item) {
+    const noteTop = staffNoteTop(item.sourceId ?? "");
+    return `
+    <div class="staff-prompt" aria-label="${escapeAttr(getPrompt(item))}">
+      <span class="staff-title">Treble clef</span>
+      <div class="staff-lines">
+        <span></span><span></span><span></span><span></span><span></span>
+        ${noteTop < 40 ? '<i class="ledger ledger-above"></i>' : ""}
+        ${noteTop > 128 ? '<i class="ledger ledger-below"></i>' : ""}
+        <b class="note-head" style="top:${noteTop}px"></b>
+      </div>
+    </div>
+  `;
+}
+function staffNoteTop(sourceId) {
+    const positions = {
+        "treble-ledger-c4": 145,
+        "treble-space-d4": 135,
+        "treble-line-e4": 125,
+        "treble-space-f4": 115,
+        "treble-line-g4": 105,
+        "treble-space-a4": 95,
+        "treble-line-b4": 85,
+        "treble-space-c5": 75,
+        "treble-line-d5": 65,
+        "treble-space-e5": 55,
+        "treble-line-f5": 45,
+        "treble-space-g5": 35,
+        "treble-ledger-a5": 25,
+    };
+    return positions[sourceId] ?? 85;
+}
+function computeStreak() {
+    const days = new Set(state.trialEvents.map((event) => event.createdAtIso.slice(0, 10)));
+    if (days.size === 0)
+        return 0;
+    let streak = 0;
+    const date = new Date();
+    while (days.has(date.toISOString().slice(0, 10))) {
+        streak += 1;
+        date.setDate(date.getDate() - 1);
+    }
+    return streak;
+}
+function formatMs(ms) {
+    if (!ms && ms !== 0)
+        return "—";
+    return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+}
+function formatClock(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+}
+function percent(value) {
+    return `${Math.round(value * 100)}%`;
+}
+function median(values) {
+    const sorted = values.filter((value) => typeof value === "number").sort((a, b) => a - b);
+    if (!sorted.length)
+        return null;
+    const middle = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[middle] : Math.round((sorted[middle - 1] + sorted[middle]) / 2);
+}
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+function escapeAttr(value) {
+    return escapeHtml(value).replaceAll("\n", " ");
+}
+function getRequiredAppRoot() {
+    const root = document.querySelector("#app");
+    if (!root) {
+        throw new Error("Missing #app root element");
+    }
+    return root;
+}
+function scrollToTop() {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+}
+function isDrillMode(value) {
+    return (value === "char_to_pinyin" ||
+        value === "char_to_meaning" ||
+        value === "word_to_pinyin" ||
+        value === "word_to_meaning" ||
+        value === "prompt_to_answer");
+}
