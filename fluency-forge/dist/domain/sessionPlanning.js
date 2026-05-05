@@ -42,11 +42,11 @@ export function createSessionPlan({ pack, stats, drillMode, settings }) {
 }
 export function buildAnswerBoard({ pack, drillMode, targetItems, boardSize }) {
     const correctAnswers = uniqueStrings(targetItems.map((item) => getExpectedAnswer(item, drillMode))).slice(0, boardSize);
-    const distractors = maybeShuffle(pack.items
+    const distractors = pack.items
         .map((item) => getExpectedAnswer(item, drillMode))
-        .filter((answer) => answer && !correctAnswers.includes(answer)), pack);
+        .filter((answer) => answer && !correctAnswers.includes(answer));
     const choices = [...correctAnswers, ...uniqueStrings(distractors).slice(0, boardSize - correctAnswers.length)];
-    return pack.domain === "chinese" ? choices.sort(compareAnswers) : shuffleValues(choices);
+    return choices.sort(compareAnswers);
 }
 export function getItemsForBatch(plan, currentIndex) {
     const current = plan[currentIndex];
@@ -79,9 +79,6 @@ function compareNeedThenRandom(a, b, statsById, randomOrderById) {
 }
 function uniqueStrings(values) {
     return Array.from(new Set(values));
-}
-function maybeShuffle(values, pack) {
-    return pack.domain === "chinese" ? values : shuffleValues(values);
 }
 function shuffleItems(items) {
     return shuffleValues(items);
