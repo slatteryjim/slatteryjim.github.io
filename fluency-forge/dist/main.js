@@ -835,7 +835,7 @@ function staffPromptMarkup(item) {
         <g class="staff-rule-group">
           ${staffLines.map((y) => `<line x1="92" y1="${y}" x2="372" y2="${y}"></line>`).join("")}
         </g>
-        <text class="staff-clef staff-clef-${note.clef}" x="${note.clef === "bass" ? 44 : 40}" y="${note.clef === "bass" ? 121 : 139}">${note.clef === "bass" ? "𝄢" : "𝄞"}</text>
+        <text class="staff-clef staff-clef-${note.clef}" x="${note.clef === "bass" ? 48 : 38}" y="${note.clef === "bass" ? 112 : 128}">${note.clef === "bass" ? "𝄢" : "𝄞"}</text>
         <g class="ledger-group">
           ${ledgerLines.map((y) => `<line x1="${note.x - 24}" y1="${y}" x2="${note.x + 24}" y2="${y}"></line>`).join("")}
         </g>
