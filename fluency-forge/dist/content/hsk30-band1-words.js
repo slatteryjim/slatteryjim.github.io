@@ -3,7 +3,7 @@
 export const hsk30Band1Words = {
     "id": "hsk30-band1-words",
     "title": "HSK 3.0 Band 1 Words",
-    "version": "2026-05-04-import-1",
+    "version": "2026-05-06-import-1",
     "sourceName": "ivankra/hsk30 + CC-CEDICT",
     "sourceUrls": [
         "https://raw.githubusercontent.com/ivankra/hsk30/master/hsk30-expanded.csv",
@@ -11,7 +11,7 @@ export const hsk30Band1Words = {
         "https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz"
     ],
     "license": "MIT for ivankra/hsk30 data; CC-CEDICT license applies to definitions",
-    "importedAtIso": "2026-05-04T03:54:16.235Z",
+    "importedAtIso": "2026-05-06T00:06:25.496Z",
     "itemIds": [
         "hsk30-l1-word-L1-0002-爱好",
         "hsk30-l1-word-L1-0004-爸爸",

@@ -3,7 +3,7 @@
 export const hsk30Band1Characters = {
     "id": "hsk30-band1-characters",
     "title": "HSK 3.0 Band 1 Characters",
-    "version": "2026-05-04-import-1",
+    "version": "2026-05-06-import-1",
     "sourceName": "ivankra/hsk30 + CC-CEDICT",
     "sourceUrls": [
         "https://raw.githubusercontent.com/ivankra/hsk30/master/hsk30-expanded.csv",
@@ -11,7 +11,7 @@ export const hsk30Band1Characters = {
         "https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz"
     ],
     "license": "MIT for ivankra/hsk30 data; CC-CEDICT license applies to definitions",
-    "importedAtIso": "2026-05-04T03:54:16.235Z",
+    "importedAtIso": "2026-05-06T00:06:25.496Z",
     "itemIds": [
         "hsk30-l1-char-爱",
         "hsk30-l1-char-八",
@@ -401,15 +401,13 @@ export const hsk30Band1Characters = {
             "simplified": "吧",
             "traditional": "吧",
             "pinyin": [
-                "bā",
-                "ba",
-                "biā"
+                "ba"
             ],
             "meanings": [
-                "bar",
-                "to puff",
-                "(onom.) bang",
-                "abbr. for 貼吧|贴吧[tie1 ba1]"
+                "(modal particle indicating suggestion or surmise)",
+                "...right?",
+                "...OK?",
+                "...I presume."
             ],
             "hskLevel": "1",
             "tags": [
@@ -433,10 +431,10 @@ export const hsk30Band1Characters = {
                 "bái"
             ],
             "meanings": [
+                "Bai ethnic group",
                 "white",
                 "snowy",
-                "pure",
-                "bright"
+                "pure"
             ],
             "hskLevel": "1",
             "tags": [
@@ -713,14 +711,13 @@ export const hsk30Band1Characters = {
             "simplified": "比",
             "traditional": "比",
             "pinyin": [
-                "bǐ",
-                "bī"
+                "bǐ"
             ],
             "meanings": [
                 "Belgium",
                 "Belgian",
                 "abbr. for 比利時|比利时[Bi3 li4 shi2]",
-                "euphemistic variant of 屄[bi1]"
+                "to compare"
             ],
             "hskLevel": "1",
             "tags": [
@@ -773,8 +770,7 @@ export const hsk30Band1Characters = {
             "simplified": "别",
             "traditional": "別/彆",
             "pinyin": [
-                "bié",
-                "biè"
+                "bié"
             ],
             "meanings": [
                 "to leave; to part",
@@ -915,16 +911,13 @@ export const hsk30Band1Characters = {
             "simplified": "差",
             "traditional": "差",
             "pinyin": [
-                "chā",
-                "chà",
-                "chāi",
-                "cī"
+                "chà"
             ],
             "meanings": [
-                "difference; discrepancy",
-                "(math.) difference",
-                "(literary) a little; somewhat; slightly",
-                "different"
+                "different",
+                "wrong; mistaken",
+                "to fall short; to lack",
+                "not up to standard; inferior"
             ],
             "hskLevel": "1",
             "tags": [
@@ -976,14 +969,13 @@ export const hsk30Band1Characters = {
             "simplified": "场",
             "traditional": "場",
             "pinyin": [
-                "cháng",
                 "chǎng"
             ],
             "meanings": [
-                "threshing floor",
-                "classifier for events and happenings: spell, episode, bout",
                 "large place used for a specific purpose",
-                "stage"
+                "stage",
+                "scene",
+                "classifier for sporting or recreational activities"
             ],
             "hskLevel": "1",
             "tags": [
@@ -1034,8 +1026,7 @@ export const hsk30Band1Characters = {
             "simplified": "车",
             "traditional": "車",
             "pinyin": [
-                "chē",
-                "jū"
+                "chē"
             ],
             "meanings": [
                 "car",
@@ -1267,11 +1258,9 @@ export const hsk30Band1Characters = {
             "simplified": "答",
             "traditional": "答",
             "pinyin": [
-                "dā",
                 "dá"
             ],
             "meanings": [
-                "bound form having the same meaning as the free word 答[da2], used in 答應|答应[da1 ying5], 答理[da1 li5] etc",
                 "to answer",
                 "to reply",
                 "to respond"
@@ -1297,14 +1286,13 @@ export const hsk30Band1Characters = {
             "simplified": "打",
             "traditional": "打",
             "pinyin": [
-                "dá",
                 "dǎ"
             ],
             "meanings": [
-                "(loanword) dozen",
-                "Taiwan pr. [da3]",
                 "a semantically light, transitive verb that is combined with various grammatical objects to form compound verbs and verb-object phrases with a diverse range of meanings",
-                "to hit; to strike"
+                "to hit; to strike",
+                "to fight",
+                "(coll.) from; since"
             ],
             "hskLevel": "1",
             "tags": [
@@ -1327,8 +1315,7 @@ export const hsk30Band1Characters = {
             "simplified": "大",
             "traditional": "大",
             "pinyin": [
-                "dà",
-                "dài"
+                "dà"
             ],
             "meanings": [
                 "big; large; great",
@@ -1443,9 +1430,7 @@ export const hsk30Band1Characters = {
             "traditional": "得",
             "pinyin": [
                 "dé",
-                "dè",
-                "de",
-                "děi"
+                "de"
             ],
             "meanings": [
                 "to obtain",
@@ -1474,14 +1459,13 @@ export const hsk30Band1Characters = {
             "simplified": "地",
             "traditional": "地",
             "pinyin": [
-                "de",
                 "dì"
             ],
             "meanings": [
-                "-ly",
-                "structural particle: used before a verb or adjective, linking it to preceding modifying adverbial adjunct",
                 "earth",
-                "ground"
+                "ground",
+                "field",
+                "place"
             ],
             "hskLevel": "1",
             "tags": [
@@ -1504,10 +1488,7 @@ export const hsk30Band1Characters = {
             "simplified": "的",
             "traditional": "的",
             "pinyin": [
-                "de",
-                "dī",
-                "dí",
-                "dì"
+                "de"
             ],
             "meanings": [
                 "of; ~'s",
@@ -1565,8 +1546,7 @@ export const hsk30Band1Characters = {
             "simplified": "弟",
             "traditional": "弟",
             "pinyin": [
-                "dì",
-                "tì"
+                "dì"
             ],
             "meanings": [
                 "younger brother",
@@ -1764,7 +1744,6 @@ export const hsk30Band1Characters = {
             "simplified": "都",
             "traditional": "都",
             "pinyin": [
-                "dū",
                 "dōu"
             ],
             "meanings": [
@@ -1794,14 +1773,13 @@ export const hsk30Band1Characters = {
             "simplified": "读",
             "traditional": "讀",
             "pinyin": [
-                "dòu",
                 "dú"
             ],
             "meanings": [
-                "comma",
-                "phrase marked by pause",
                 "to read out; to read aloud",
-                "to read"
+                "to read",
+                "to attend",
+                "to pronounce"
             ],
             "hskLevel": "1",
             "tags": [
@@ -1907,14 +1885,11 @@ export const hsk30Band1Characters = {
             "simplified": "儿",
             "traditional": "兒",
             "pinyin": [
-                "ér",
-                "r"
+                "ér"
             ],
             "meanings": [
                 "child",
-                "son",
-                "non-syllabic diminutive suffix",
-                "retroflex final"
+                "son"
             ],
             "hskLevel": "1",
             "tags": [
@@ -2136,8 +2111,7 @@ export const hsk30Band1Characters = {
             "simplified": "分",
             "traditional": "分",
             "pinyin": [
-                "fēn",
-                "fèn"
+                "fēn"
             ],
             "meanings": [
                 "to divide; to separate",
@@ -2195,8 +2169,7 @@ export const hsk30Band1Characters = {
             "simplified": "服",
             "traditional": "服",
             "pinyin": [
-                "fú",
-                "fù"
+                "fú"
             ],
             "meanings": [
                 "clothes",
@@ -2365,11 +2338,9 @@ export const hsk30Band1Characters = {
             "simplified": "个",
             "traditional": "個",
             "pinyin": [
-                "gě",
                 "gè"
             ],
             "meanings": [
-                "used in 自個兒|自个儿[zi4 ge3 r5]",
                 "(classifier used before a noun that has no specific classifier)",
                 "(bound form) individual"
             ],
@@ -2394,8 +2365,7 @@ export const hsk30Band1Characters = {
             "simplified": "给",
             "traditional": "給",
             "pinyin": [
-                "gěi",
-                "jǐ"
+                "gěi"
             ],
             "meanings": [
                 "to",
@@ -2543,7 +2513,7 @@ export const hsk30Band1Characters = {
                 "guì"
             ],
             "meanings": [
-                "Guizhou Province",
+                "short name for Guizhou 貴州|贵州[Gui4 zhou1]",
                 "expensive",
                 "(bound form) highly valued; precious",
                 "(bound form) noble; of high rank"
@@ -2625,9 +2595,7 @@ export const hsk30Band1Characters = {
             "simplified": "过",
             "traditional": "過",
             "pinyin": [
-                "guō",
-                "guò",
-                "guo"
+                "guò"
             ],
             "meanings": [
                 "to cross",
@@ -2768,14 +2736,13 @@ export const hsk30Band1Characters = {
             "simplified": "号",
             "traditional": "號",
             "pinyin": [
-                "háo",
                 "hào"
             ],
             "meanings": [
-                "roar",
-                "cry",
-                "ordinal number",
-                "day of a month"
+                "(literary) to call out; to command",
+                "(bound form) bugle; trumpet",
+                "(bound form) signal; bugle call",
+                "(bound form) mark; sign"
             ],
             "hskLevel": "1",
             "tags": [
@@ -2798,12 +2765,10 @@ export const hsk30Band1Characters = {
             "simplified": "喝",
             "traditional": "喝",
             "pinyin": [
-                "hē",
-                "hè"
+                "hē"
             ],
             "meanings": [
-                "to drink",
-                "to shout"
+                "to drink"
             ],
             "hskLevel": "1",
             "tags": [
@@ -2824,11 +2789,7 @@ export const hsk30Band1Characters = {
             "simplified": "和",
             "traditional": "和",
             "pinyin": [
-                "hé",
-                "hè",
-                "hú",
-                "huó",
-                "huò"
+                "hé"
             ],
             "meanings": [
                 "(joining two nouns) and; together with; with",
@@ -3058,10 +3019,10 @@ export const hsk30Band1Characters = {
                 "huí"
             ],
             "meanings": [
-                "to circle",
-                "to go back",
-                "to turn around",
-                "to answer"
+                "Hui ethnic group",
+                "to go back; to return; to turn back; to turn around",
+                "to reply; to answer",
+                "classifier for literary divisions"
             ],
             "hskLevel": "1",
             "tags": [
@@ -3084,8 +3045,7 @@ export const hsk30Band1Characters = {
             "simplified": "会",
             "traditional": "會",
             "pinyin": [
-                "huì",
-                "kuài"
+                "huì"
             ],
             "meanings": [
                 "can; to have the skill; to know how to",
@@ -3200,14 +3160,13 @@ export const hsk30Band1Characters = {
             "simplified": "几",
             "traditional": "幾",
             "pinyin": [
-                "jī",
                 "jǐ"
             ],
             "meanings": [
-                "small table",
-                "almost",
                 "how much",
-                "how many"
+                "how many",
+                "several",
+                "a few"
             ],
             "hskLevel": "1",
             "tags": [
@@ -3287,15 +3246,10 @@ export const hsk30Band1Characters = {
             "simplified": "假",
             "traditional": "假",
             "pinyin": [
-                "gēi",
-                "jiǎ",
                 "jià"
             ],
             "meanings": [
-                "used in 假掰[gei1 bai1]",
-                "fake",
-                "false",
-                "artificial"
+                "vacation"
             ],
             "hskLevel": "1",
             "tags": [
@@ -3318,8 +3272,7 @@ export const hsk30Band1Characters = {
             "simplified": "间",
             "traditional": "間",
             "pinyin": [
-                "jiān",
-                "jiàn"
+                "jiān"
             ],
             "meanings": [
                 "between",
@@ -3348,8 +3301,7 @@ export const hsk30Band1Characters = {
             "simplified": "见",
             "traditional": "見",
             "pinyin": [
-                "jiàn",
-                "xiàn"
+                "jiàn"
             ],
             "meanings": [
                 "to see",
@@ -3715,14 +3667,13 @@ export const hsk30Band1Characters = {
             "simplified": "看",
             "traditional": "看",
             "pinyin": [
-                "kān",
                 "kàn"
             ],
             "meanings": [
-                "to look after",
-                "to take care of",
+                "to see; to look at",
+                "to read",
                 "to watch",
-                "to guard"
+                "to visit; to call on"
             ],
             "hskLevel": "1",
             "tags": [
@@ -3994,15 +3945,12 @@ export const hsk30Band1Characters = {
             "simplified": "了",
             "traditional": "了/瞭",
             "pinyin": [
-                "le",
-                "liǎo",
-                "liào"
+                "le"
             ],
             "meanings": [
                 "(completed action marker)",
                 "(modal particle indicating change of state, situation now)",
-                "(modal particle intensifying preceding clause)",
-                "to finish"
+                "(modal particle intensifying preceding clause)"
             ],
             "hskLevel": "1",
             "tags": [
@@ -4025,15 +3973,13 @@ export const hsk30Band1Characters = {
             "simplified": "累",
             "traditional": "累",
             "pinyin": [
-                "lěi",
-                "lèi",
-                "léi"
+                "lèi"
             ],
             "meanings": [
-                "to accumulate",
-                "to involve or implicate",
-                "continuous",
-                "repeated"
+                "tired",
+                "weary",
+                "to strain",
+                "to wear out"
             ],
             "hskLevel": "1",
             "tags": [
@@ -4169,13 +4115,11 @@ export const hsk30Band1Characters = {
             "simplified": "六",
             "traditional": "六",
             "pinyin": [
-                "liù",
-                "lù"
+                "liù"
             ],
             "meanings": [
                 "six",
-                "6",
-                "used in place names"
+                "6"
             ],
             "hskLevel": "1",
             "tags": [
@@ -4307,13 +4251,9 @@ export const hsk30Band1Characters = {
             "simplified": "吗",
             "traditional": "嗎",
             "pinyin": [
-                "má",
-                "mǎ",
                 "ma"
             ],
             "meanings": [
-                "(coll.) what?",
-                "used in 嗎啡|吗啡[ma3 fei1]",
                 "(question particle for \"yes-no\" questions)"
             ],
             "hskLevel": "1",
@@ -4445,13 +4385,9 @@ export const hsk30Band1Characters = {
             "simplified": "么",
             "traditional": "麼",
             "pinyin": [
-                "má",
-                "ma",
                 "me"
             ],
             "meanings": [
-                "exclamatory final particle",
-                "interrogative final particle",
                 "suffix, used to form interrogative 什麼|什么[shen2 me5], what?, indefinite 這麼|这么[zhe4 me5] thus, etc"
             ],
             "hskLevel": "1",
@@ -4475,14 +4411,10 @@ export const hsk30Band1Characters = {
             "simplified": "没",
             "traditional": "沒",
             "pinyin": [
-                "méi",
-                "mò"
+                "méi"
             ],
             "meanings": [
-                "(negative prefix for verbs) have not; not",
-                "drowned",
-                "to end",
-                "to die"
+                "(negative prefix for verbs) have not; not"
             ],
             "hskLevel": "1",
             "tags": [
@@ -4728,16 +4660,11 @@ export const hsk30Band1Characters = {
             "simplified": "哪",
             "traditional": "哪",
             "pinyin": [
-                "nǎ",
-                "na",
-                "né",
-                "něi"
+                "nǎ"
             ],
             "meanings": [
                 "how",
-                "which",
-                "(emphatic sentence-final particle, used instead of 啊[a5] after a word ending in \"n\")",
-                "used in 哪吒[Ne2 zha1]"
+                "which"
             ],
             "hskLevel": "1",
             "tags": [
@@ -4760,16 +4687,12 @@ export const hsk30Band1Characters = {
             "simplified": "那",
             "traditional": "那",
             "pinyin": [
-                "nā",
-                "nuó",
-                "nǎ",
                 "nà"
             ],
             "meanings": [
                 "(specifier) that; the; those",
                 "(pronoun) that",
-                "then",
-                "(archaic) many"
+                "then"
             ],
             "hskLevel": "1",
             "tags": [
@@ -4848,12 +4771,9 @@ export const hsk30Band1Characters = {
             "simplified": "南",
             "traditional": "南",
             "pinyin": [
-                "nán",
-                "nā"
+                "nán"
             ],
             "meanings": [
-                "used in 南無|南无[na1 mo2]",
-                "Taiwan pr. [na2]",
                 "south"
             ],
             "hskLevel": "1",
@@ -4877,8 +4797,7 @@ export const hsk30Band1Characters = {
             "simplified": "难",
             "traditional": "難",
             "pinyin": [
-                "nán",
-                "nàn"
+                "nán"
             ],
             "meanings": [
                 "difficult",
@@ -4936,14 +4855,12 @@ export const hsk30Band1Characters = {
             "simplified": "呢",
             "traditional": "呢",
             "pinyin": [
-                "ne",
-                "ní"
+                "ne"
             ],
             "meanings": [
                 "(sentence-final particle) used in questions to link back to prior discourse or context",
                 "(sentence-final particle) indicating that a state or situation still holds",
-                "(discourse particle) used to mark a slight pause or emphasis in speech",
-                "dense wool fabric"
+                "(discourse particle) used to mark a slight pause or emphasis in speech"
             ],
             "hskLevel": "1",
             "tags": [
@@ -5014,7 +4931,8 @@ export const hsk30Band1Characters = {
             "simplified": "年",
             "traditional": "年",
             "pinyin": [
-                "nián"
+                "nián",
+                "ián"
             ],
             "meanings": [
                 "year",
@@ -5093,8 +5011,7 @@ export const hsk30Band1Characters = {
             "simplified": "女",
             "traditional": "女",
             "pinyin": [
-                "nǚ",
-                "rǔ"
+                "nǚ"
             ],
             "meanings": [
                 "female",
@@ -5151,14 +5068,13 @@ export const hsk30Band1Characters = {
             "simplified": "跑",
             "traditional": "跑",
             "pinyin": [
-                "páo",
                 "pǎo"
             ],
             "meanings": [
-                "(of an animal) to paw",
                 "to run",
                 "to run away",
-                "to escape"
+                "to escape",
+                "to run around"
             ],
             "hskLevel": "1",
             "tags": [
@@ -5490,7 +5406,8 @@ export const hsk30Band1Characters = {
             "simplified": "去",
             "traditional": "去",
             "pinyin": [
-                "qù"
+                "qù",
+                "qùn"
             ],
             "meanings": [
                 "to go",
@@ -5605,10 +5522,10 @@ export const hsk30Band1Characters = {
                 "rì"
             ],
             "meanings": [
-                "abbr. for 日本[Ri4 ben3], Japan",
-                "sun",
+                "(bound form) sun",
                 "day",
-                "date, day of the month"
+                "day of the month",
+                "(bound form) Japan"
             ],
             "hskLevel": "1",
             "tags": [
@@ -5741,14 +5658,13 @@ export const hsk30Band1Characters = {
             "simplified": "上",
             "traditional": "上",
             "pinyin": [
-                "shǎng",
                 "shàng"
             ],
             "meanings": [
-                "used in 上聲|上声[shang3 sheng1]",
                 "(bound form) up; upper; above; previous",
                 "first",
-                "to climb; to get onto; to go up"
+                "to climb; to get onto; to go up",
+                "to attend"
             ],
             "hskLevel": "1",
             "tags": [
@@ -5771,8 +5687,7 @@ export const hsk30Band1Characters = {
             "simplified": "少",
             "traditional": "少",
             "pinyin": [
-                "shǎo",
-                "shào"
+                "shǎo"
             ],
             "meanings": [
                 "few",
@@ -5853,14 +5768,10 @@ export const hsk30Band1Characters = {
             "simplified": "什",
             "traditional": "什",
             "pinyin": [
-                "shén",
-                "shí"
+                "shén"
             ],
             "meanings": [
-                "what",
-                "ten",
-                "assorted",
-                "miscellaneous"
+                "what"
             ],
             "hskLevel": "1",
             "tags": [
@@ -5996,14 +5907,12 @@ export const hsk30Band1Characters = {
             "simplified": "识",
             "traditional": "識",
             "pinyin": [
-                "shí",
-                "zhì"
+                "shí"
             ],
             "meanings": [
                 "to know",
                 "knowledge",
-                "Taiwan pr. [shi4]",
-                "to record"
+                "Taiwan pr. [shi4]"
             ],
             "hskLevel": "1",
             "tags": [
@@ -6225,7 +6134,7 @@ export const hsk30Band1Characters = {
             "simplified": "谁",
             "traditional": "誰",
             "pinyin": [
-                "shéi"
+                "shuí"
             ],
             "meanings": [
                 "who",
@@ -6252,10 +6161,10 @@ export const hsk30Band1Characters = {
                 "shuǐ"
             ],
             "meanings": [
+                "Shui ethnic group",
                 "water",
                 "(after a name) ... River",
-                "to swim",
-                "(coll.) lacking in substance; shoddy"
+                "to swim"
             ],
             "hskLevel": "1",
             "tags": [
@@ -6305,14 +6214,13 @@ export const hsk30Band1Characters = {
             "simplified": "说",
             "traditional": "說",
             "pinyin": [
-                "shuì",
                 "shuō"
             ],
             "meanings": [
-                "to persuade",
                 "to speak; to talk; to say",
                 "to explain; to comment",
-                "to scold; to tell off"
+                "to scold; to tell off",
+                "(bound form) theory; doctrine"
             ],
             "hskLevel": "1",
             "tags": [
@@ -6524,14 +6432,13 @@ export const hsk30Band1Characters = {
             "simplified": "体",
             "traditional": "體",
             "pinyin": [
-                "tī",
                 "tǐ"
             ],
             "meanings": [
-                "used in 體己|体己[ti1 ji5]",
-                "Taiwan pr. [ti3]",
                 "body",
-                "form"
+                "form",
+                "style",
+                "system"
             ],
             "hskLevel": "1",
             "tags": [
@@ -6611,14 +6518,13 @@ export const hsk30Band1Characters = {
             "simplified": "听",
             "traditional": "聽",
             "pinyin": [
-                "yǐn",
                 "tīng"
             ],
             "meanings": [
-                "smile",
                 "to listen to; to hear",
                 "to heed; to obey",
-                "a can"
+                "a can",
+                "classifier for canned beverages"
             ],
             "hskLevel": "1",
             "tags": [
@@ -6641,8 +6547,7 @@ export const hsk30Band1Characters = {
             "simplified": "同",
             "traditional": "同",
             "pinyin": [
-                "tóng",
-                "tòng"
+                "tóng"
             ],
             "meanings": [
                 "like",
@@ -7062,8 +6967,7 @@ export const hsk30Band1Characters = {
             "simplified": "洗",
             "traditional": "洗",
             "pinyin": [
-                "xǐ",
-                "xiǎn"
+                "xǐ"
             ],
             "meanings": [
                 "to wash; to bathe",
@@ -7121,8 +7025,7 @@ export const hsk30Band1Characters = {
             "simplified": "系",
             "traditional": "係/繫/系",
             "pinyin": [
-                "xì",
-                "jì"
+                "xì"
             ],
             "meanings": [
                 "to connect",
@@ -7296,11 +7199,9 @@ export const hsk30Band1Characters = {
             "simplified": "校",
             "traditional": "校",
             "pinyin": [
-                "jiào",
                 "xiào"
             ],
             "meanings": [
-                "to check; to collate; to proofread",
                 "(bound form) school; college",
                 "(bound form) (military) field officer"
             ],
@@ -7377,12 +7278,10 @@ export const hsk30Band1Characters = {
             "simplified": "写",
             "traditional": "寫",
             "pinyin": [
-                "xiě",
-                "xiè"
+                "xiě"
             ],
             "meanings": [
-                "to write",
-                "used in 寫意|写意[xie4 yi4]"
+                "to write"
             ],
             "hskLevel": "1",
             "tags": [
@@ -7490,15 +7389,13 @@ export const hsk30Band1Characters = {
             "simplified": "行",
             "traditional": "行",
             "pinyin": [
-                "háng",
-                "héng",
                 "xíng"
             ],
             "meanings": [
-                "(bound form) row; line",
-                "(bound form) line of business; trade; profession",
-                "(bound form) commercial firm",
-                "(bound form) to rank"
+                "(bound form) to walk; to go; to travel",
+                "(literary) trip; journey; visit",
+                "(bound form) temporary; makeshift",
+                "(bound form) current; in circulation"
             ],
             "hskLevel": "1",
             "tags": [
@@ -7521,14 +7418,12 @@ export const hsk30Band1Characters = {
             "simplified": "兴",
             "traditional": "興",
             "pinyin": [
-                "xīng",
                 "xìng"
             ],
             "meanings": [
-                "to rise",
-                "to flourish",
-                "to become popular",
-                "to start"
+                "feeling or desire to do sth",
+                "interest in sth",
+                "excitement"
             ],
             "hskLevel": "1",
             "tags": [
@@ -7638,14 +7533,13 @@ export const hsk30Band1Characters = {
             "simplified": "要",
             "traditional": "要",
             "pinyin": [
-                "yāo",
                 "yào"
             ],
             "meanings": [
-                "(bound form) to demand; to coerce",
                 "to want; to need; to ask for",
                 "will; shall; about to",
-                "need to; should"
+                "need to; should",
+                "if"
             ],
             "hskLevel": "1",
             "tags": [
@@ -7721,11 +7615,9 @@ export const hsk30Band1Characters = {
             "simplified": "页",
             "traditional": "頁",
             "pinyin": [
-                "xié",
                 "yè"
             ],
             "meanings": [
-                "head",
                 "page",
                 "leaf"
             ],
@@ -7777,14 +7669,11 @@ export const hsk30Band1Characters = {
             "simplified": "衣",
             "traditional": "衣",
             "pinyin": [
-                "yī",
-                "yì"
+                "yī"
             ],
             "meanings": [
                 "clothes",
-                "Kangxi radical 145",
-                "to dress",
-                "to wear"
+                "Kangxi radical 145"
             ],
             "hskLevel": "1",
             "tags": [
@@ -7976,14 +7865,10 @@ export const hsk30Band1Characters = {
             "simplified": "雨",
             "traditional": "雨",
             "pinyin": [
-                "yǔ",
-                "yù"
+                "yǔ"
             ],
             "meanings": [
-                "rain",
-                "(literary) to rain",
-                "(of rain, snow etc) to fall",
-                "to precipitate"
+                "rain"
             ],
             "hskLevel": "1",
             "tags": [
@@ -8006,14 +7891,12 @@ export const hsk30Band1Characters = {
             "simplified": "语",
             "traditional": "語",
             "pinyin": [
-                "yǔ",
-                "yù"
+                "yǔ"
             ],
             "meanings": [
                 "dialect",
                 "language",
-                "speech",
-                "(literary) to tell; to let (sb) know"
+                "speech"
             ],
             "hskLevel": "1",
             "tags": [
@@ -8065,8 +7948,7 @@ export const hsk30Band1Characters = {
             "simplified": "远",
             "traditional": "遠",
             "pinyin": [
-                "yuǎn",
-                "yuàn"
+                "yuǎn"
             ],
             "meanings": [
                 "far",
@@ -8320,14 +8202,12 @@ export const hsk30Band1Characters = {
             "simplified": "这",
             "traditional": "這",
             "pinyin": [
-                "zhè",
-                "zhèi"
+                "zhè"
             ],
             "meanings": [
                 "(pronoun) this; these",
                 "(bound form) this; the",
-                "(bound form) this; these",
-                "(coll.) this"
+                "(bound form) this; these"
             ],
             "hskLevel": "1",
             "tags": [
@@ -8350,16 +8230,10 @@ export const hsk30Band1Characters = {
             "simplified": "着",
             "traditional": "著",
             "pinyin": [
-                "zhāo",
-                "zháo",
-                "zhe",
-                "zhuó"
+                "zhe"
             ],
             "meanings": [
-                "a move in chess",
-                "trick; tactic",
-                "(dialect) okay; all right",
-                "(dialect) to put in; to add"
+                "aspect particle indicating action in progress or ongoing state"
             ],
             "hskLevel": "1",
             "tags": [
@@ -8411,14 +8285,13 @@ export const hsk30Band1Characters = {
             "simplified": "正",
             "traditional": "正",
             "pinyin": [
-                "zhēng",
                 "zhèng"
             ],
             "meanings": [
-                "first month of the lunar year",
                 "straight",
                 "upright",
-                "proper"
+                "proper",
+                "main"
             ],
             "hskLevel": "1",
             "tags": [
@@ -8468,8 +8341,7 @@ export const hsk30Band1Characters = {
             "simplified": "中",
             "traditional": "中",
             "pinyin": [
-                "zhōng",
-                "zhòng"
+                "zhōng"
             ],
             "meanings": [
                 "(bound form) China; Chinese",
@@ -8498,14 +8370,12 @@ export const hsk30Band1Characters = {
             "simplified": "重",
             "traditional": "重",
             "pinyin": [
-                "chóng",
                 "zhòng"
             ],
             "meanings": [
-                "to repeat",
-                "repetition",
-                "again",
-                "re-"
+                "heavy",
+                "serious",
+                "to attach importance to"
             ],
             "hskLevel": "1",
             "tags": [
@@ -8611,14 +8481,10 @@ export const hsk30Band1Characters = {
             "simplified": "子",
             "traditional": "子",
             "pinyin": [
-                "zǐ",
                 "zi"
             ],
             "meanings": [
-                "son",
-                "child",
-                "seed",
-                "egg"
+                "noun suffix, as in 椅子[yi3 zi5] \"chair\""
             ],
             "hskLevel": "1",
             "tags": [
@@ -8776,14 +8642,13 @@ export const hsk30Band1Characters = {
             "simplified": "作",
             "traditional": "作",
             "pinyin": [
-                "zuō",
                 "zuò"
             ],
             "meanings": [
-                "(bound form) worker",
-                "(bound form) workshop",
-                "(slang) troublesome; high-maintenance",
-                "to do; to engage in"
+                "to do; to engage in",
+                "to write; to compose",
+                "to pretend; to feign",
+                "to regard as; to consider to be"
             ],
             "hskLevel": "1",
             "tags": [
