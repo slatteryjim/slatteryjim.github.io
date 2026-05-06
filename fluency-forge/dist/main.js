@@ -123,7 +123,13 @@ function renderDrill(pack) {
       </aside>
 
       <section class="prompt-card">
-        <button class="sound-button" aria-label="Audio placeholder">▶</button>
+        <button
+          class="sound-button"
+          data-action="speak-prompt"
+          data-speech="${escapeAttr(speechText(item, prompt))}"
+          data-lang="${speechLang(item)}"
+          aria-label="Play prompt audio"
+        >▶</button>
         ${promptMarkup(item, pack, prompt)}
         <p>Tap the ${answerLabel(state.settings.drillMode)}</p>
         ${feedback ? feedbackPill(feedback) : ""}
@@ -449,6 +455,9 @@ function bindCommonActions() {
                 void importProgress(file);
         });
     });
+    app.querySelectorAll("[data-action='speak-prompt']").forEach((button) => {
+        button.addEventListener("click", () => speakText(button.dataset.speech ?? "", button.dataset.lang ?? "en-US"));
+    });
 }
 function exportProgress() {
     const backup = {
@@ -612,8 +621,35 @@ function feedbackDetail(item, feedback) {
       <span>Correct answer</span>
       <strong>${escapeHtml(feedback.expectedAnswer)}</strong>
       ${details.map((detail) => `<small>${escapeHtml(detail)}</small>`).join("")}
+      ${exampleWordsMarkup(item)}
     </div>
   `;
+}
+function exampleWordsMarkup(item) {
+    if (item.type !== "character" || !item.exampleWords?.length)
+        return "";
+    return `
+    <div class="feedback-examples" aria-label="Example words">
+      ${item.exampleWords.slice(0, 5).map((word) => `<span>${escapeHtml(word)}</span>`).join("")}
+    </div>
+  `;
+}
+function speechText(item, prompt) {
+    if (item.type === "generic")
+        return item.display ?? item.prompt;
+    return item.simplified || prompt;
+}
+function speechLang(item) {
+    return item.type === "character" || item.type === "word" ? "zh-CN" : "en-US";
+}
+function speakText(text, lang) {
+    if (!text || !("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined")
+        return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = lang;
+    utterance.rate = lang.startsWith("zh") ? 0.82 : 0.95;
+    window.speechSynthesis.speak(utterance);
 }
 function answerLabelMarkup(choice) {
     return choice

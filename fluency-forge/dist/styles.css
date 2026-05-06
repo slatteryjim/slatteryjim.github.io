@@ -629,6 +629,27 @@ button {
   line-height: 1.25;
 }
 
+.feedback-examples {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: 100%;
+  margin-top: 4px;
+}
+
+.feedback-examples span {
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: rgba(7, 31, 76, 0.08);
+  color: #071f4c;
+  font-family: "Kaiti SC", "STKaiti", "KaiTi", serif;
+  font-size: 1.1rem;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: none;
+}
+
 .report-action {
   min-height: 58px;
   margin-top: 18px;
