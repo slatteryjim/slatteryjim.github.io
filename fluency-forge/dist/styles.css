@@ -514,8 +514,8 @@ button {
 
 .staff-prompt {
   display: grid;
-  gap: 18px;
-  width: min(480px, 90%);
+  gap: 10px;
+  width: min(520px, 96%);
 }
 
 .staff-title {
@@ -525,51 +525,47 @@ button {
   text-align: center;
 }
 
-.staff-lines {
-  position: relative;
-  height: 180px;
+.staff-svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
 }
 
-.staff-lines span {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 5px;
-  border-radius: 999px;
-  background: #061d47;
+.staff-rule-group line,
+.ledger-group line,
+.note-stem {
+  stroke: #061d47;
+  stroke-linecap: round;
 }
 
-.staff-lines span:nth-child(1) { top: 45px; }
-.staff-lines span:nth-child(2) { top: 65px; }
-.staff-lines span:nth-child(3) { top: 85px; }
-.staff-lines span:nth-child(4) { top: 105px; }
-.staff-lines span:nth-child(5) { top: 125px; }
+.staff-rule-group line {
+  stroke-width: 3.8;
+}
+
+.ledger-group line {
+  stroke-width: 3.4;
+}
+
+.staff-clef {
+  fill: #061d47;
+  font-family: "Bravura", "Noto Music", "Segoe UI Symbol", "Apple Symbols", serif;
+  font-weight: 400;
+}
+
+.staff-clef-treble {
+  font-size: 88px;
+}
+
+.staff-clef-bass {
+  font-size: 78px;
+}
+
+.note-stem {
+  stroke-width: 3.2;
+}
 
 .note-head {
-  position: absolute;
-  left: 50%;
-  width: 34px;
-  height: 20px;
-  border-radius: 50%;
-  background: #061d47;
-  transform: translate(-50%, -50%) rotate(-18deg);
-}
-
-.ledger {
-  position: absolute;
-  left: calc(50% - 30px);
-  width: 60px;
-  height: 5px;
-  border-radius: 999px;
-  background: #061d47;
-}
-
-.ledger-above {
-  top: 25px;
-}
-
-.ledger-below {
-  top: 145px;
+  fill: #061d47;
 }
 
 .prompt-card p {

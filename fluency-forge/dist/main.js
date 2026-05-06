@@ -822,36 +822,62 @@ function promptMarkup(item, pack, prompt) {
     return `<div class="prompt-text ${pack.domain ? `domain-${pack.domain}` : ""}">${escapeHtml(prompt)}</div>`;
 }
 function staffPromptMarkup(item) {
-    const noteTop = staffNoteTop(item.sourceId ?? "");
+    const note = staffNoteData(item.sourceId ?? "");
+    const staffLines = [60, 78, 96, 114, 132];
+    const ledgerLines = ledgerLineYs(note.step, note.y);
+    const stemUp = note.step < 4;
+    const stemX = stemUp ? note.x + 10 : note.x - 10;
+    const stemEndY = stemUp ? note.y - 55 : note.y + 55;
     return `
     <div class="staff-prompt" aria-label="${escapeAttr(getPrompt(item))}">
-      <span class="staff-title">Treble clef</span>
-      <div class="staff-lines">
-        <span></span><span></span><span></span><span></span><span></span>
-        ${noteTop < 40 ? '<i class="ledger ledger-above"></i>' : ""}
-        ${noteTop > 128 ? '<i class="ledger ledger-below"></i>' : ""}
-        <b class="note-head" style="top:${noteTop}px"></b>
-      </div>
+      <span class="staff-title">${note.clef === "bass" ? "Bass clef" : "Treble clef"}</span>
+      <svg class="staff-svg" viewBox="0 0 420 220" role="img" aria-label="${escapeAttr(getPrompt(item))}">
+        <g class="staff-rule-group">
+          ${staffLines.map((y) => `<line x1="92" y1="${y}" x2="372" y2="${y}"></line>`).join("")}
+        </g>
+        <text class="staff-clef staff-clef-${note.clef}" x="${note.clef === "bass" ? 44 : 40}" y="${note.clef === "bass" ? 121 : 139}">${note.clef === "bass" ? "𝄢" : "𝄞"}</text>
+        <g class="ledger-group">
+          ${ledgerLines.map((y) => `<line x1="${note.x - 24}" y1="${y}" x2="${note.x + 24}" y2="${y}"></line>`).join("")}
+        </g>
+        <g class="note-mark" data-note-step="${note.step}">
+          <line class="note-stem" x1="${stemX}" y1="${note.y}" x2="${stemX}" y2="${stemEndY}"></line>
+          <ellipse class="note-head" cx="${note.x}" cy="${note.y}" rx="13" ry="8.6" transform="rotate(-18 ${note.x} ${note.y})"></ellipse>
+        </g>
+      </svg>
     </div>
   `;
 }
-function staffNoteTop(sourceId) {
-    const positions = {
-        "treble-ledger-c4": 145,
-        "treble-space-d4": 135,
-        "treble-line-e4": 125,
-        "treble-space-f4": 115,
-        "treble-line-g4": 105,
-        "treble-space-a4": 95,
-        "treble-line-b4": 85,
-        "treble-space-c5": 75,
-        "treble-line-d5": 65,
-        "treble-space-e5": 55,
-        "treble-line-f5": 45,
-        "treble-space-g5": 35,
-        "treble-ledger-a5": 25,
+function staffNoteData(sourceId) {
+    const match = sourceId.match(/^(treble|bass)-([a-g])(\d)$/);
+    const clef = match?.[1] === "bass" ? "bass" : "treble";
+    const letter = (match?.[2] ?? (clef === "bass" ? "d" : "b")).toUpperCase();
+    const octave = Number(match?.[3] ?? (clef === "bass" ? "3" : "4"));
+    const baseStep = clef === "bass" ? noteOrdinal("G", 2) : noteOrdinal("E", 4);
+    const step = noteOrdinal(letter, octave) - baseStep;
+    return {
+        clef,
+        step,
+        x: 258,
+        y: 132 - step * 9,
     };
-    return positions[sourceId] ?? 85;
+}
+function noteOrdinal(letter, octave) {
+    const letterIndex = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
+    return octave * 7 + (letterIndex[letter] ?? 0);
+}
+function ledgerLineYs(step, noteY) {
+    const lines = [];
+    if (step <= -2) {
+        for (let ledgerStep = -2; ledgerStep >= step; ledgerStep -= 2) {
+            lines.push(132 - ledgerStep * 9);
+        }
+    }
+    if (step >= 10) {
+        for (let ledgerStep = 10; ledgerStep <= step; ledgerStep += 2) {
+            lines.push(132 - ledgerStep * 9);
+        }
+    }
+    return lines.filter((y) => Math.abs(y - noteY) < 56);
 }
 function computeStreak() {
     const days = new Set(state.trialEvents.map((event) => event.createdAtIso.slice(0, 10)));
