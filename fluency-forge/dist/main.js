@@ -849,7 +849,7 @@ function staffPromptMarkup(item) {
 }
 function clefMarkup(clef) {
     if (clef === "bass") {
-        return `<text class="staff-clef staff-clef-bass" x="42" y="114" aria-hidden="true">𝄢</text>`;
+        return `<text class="staff-clef staff-clef-bass" x="52" y="123" aria-hidden="true">𝄢</text>`;
     }
     return `<text class="staff-clef staff-clef-treble" x="38" y="128" aria-hidden="true">𝄞</text>`;
 }
