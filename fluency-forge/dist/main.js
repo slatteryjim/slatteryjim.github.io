@@ -833,9 +833,9 @@ function staffPromptMarkup(item) {
       <span class="staff-title">${note.clef === "bass" ? "Bass clef" : "Treble clef"}</span>
       <svg class="staff-svg" viewBox="0 0 420 220" role="img" aria-label="${escapeAttr(getPrompt(item))}">
         <g class="staff-rule-group">
-          ${staffLines.map((y) => `<line x1="92" y1="${y}" x2="372" y2="${y}"></line>`).join("")}
+          ${staffLines.map((y) => `<line x1="58" y1="${y}" x2="372" y2="${y}"></line>`).join("")}
         </g>
-        <text class="staff-clef staff-clef-${note.clef}" x="${note.clef === "bass" ? 48 : 38}" y="${note.clef === "bass" ? 112 : 128}">${note.clef === "bass" ? "𝄢" : "𝄞"}</text>
+        ${clefMarkup(note.clef)}
         <g class="ledger-group">
           ${ledgerLines.map((y) => `<line x1="${note.x - 24}" y1="${y}" x2="${note.x + 24}" y2="${y}"></line>`).join("")}
         </g>
@@ -846,6 +846,19 @@ function staffPromptMarkup(item) {
       </svg>
     </div>
   `;
+}
+function clefMarkup(clef) {
+    if (clef === "bass") {
+        return `
+      <g class="staff-clef staff-clef-bass" aria-hidden="true">
+        <path class="bass-hook" d="M 68 78 C 101 77 96 112 53 131"></path>
+        <circle class="bass-head" cx="68" cy="78" r="10.5"></circle>
+        <circle class="bass-dot" cx="108" cy="69" r="5.2"></circle>
+        <circle class="bass-dot" cx="108" cy="87" r="5.2"></circle>
+      </g>
+    `;
+    }
+    return `<text class="staff-clef staff-clef-treble" x="38" y="128" aria-hidden="true">𝄞</text>`;
 }
 function staffNoteData(sourceId) {
     const match = sourceId.match(/^(treble|bass)-([a-g])(\d)$/);
