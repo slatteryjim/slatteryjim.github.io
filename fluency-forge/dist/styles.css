@@ -556,16 +556,8 @@ button {
   font-size: 84px;
 }
 
-.staff-clef-bass .bass-hook {
-  fill: none;
-  stroke: #061d47;
-  stroke-width: 11;
-  stroke-linecap: round;
-}
-
-.staff-clef-bass .bass-head,
-.staff-clef-bass .bass-dot {
-  fill: #061d47;
+.staff-clef-bass {
+  font-size: 70px;
 }
 
 .note-stem {
