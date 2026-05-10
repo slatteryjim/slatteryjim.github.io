@@ -18,12 +18,10 @@ export function createSessionPlan({ pack, stats, drillMode, settings }) {
         .filter((item) => (statsById.get(item.id)?.attempts ?? 0) > 0 && !dueOrWeak.includes(item))
         .sort((a, b) => compareNeedThenRandom(a, b, statsById, randomOrderById));
     const prompts = [];
-    const broadCount = Math.min(8, settings.sessionLength);
-    const focusedCount = Math.max(0, settings.sessionLength - broadCount - 4);
-    const recheckCount = Math.max(0, settings.sessionLength - broadCount - focusedCount);
+    const broadCount = Math.min(settings.sessionLength, candidateItems.length);
     const reviewCap = unseen.length
-        ? Math.min(dueOrWeak.length, Math.max(1, Math.floor(settings.boardSize / 3)))
-        : Math.min(dueOrWeak.length, settings.boardSize);
+        ? Math.min(dueOrWeak.length, Math.max(2, Math.floor(broadCount / 4)))
+        : Math.min(dueOrWeak.length, broadCount);
     let unseenCursor = 0;
     const takeUnseen = (count) => {
         if (count <= 0)
@@ -34,19 +32,9 @@ export function createSessionPlan({ pack, stats, drillMode, settings }) {
     };
     const broadItems = fillTargetSet([
         ...dueOrWeak.slice(0, reviewCap),
-        ...takeUnseen(Math.max(0, Math.min(settings.boardSize, broadCount) - reviewCap)),
-    ], Math.min(settings.boardSize, broadCount), [...dueOrWeak, ...fallbackReview, ...candidateItems]);
-    const focusedBase = dueOrWeak.length
-        ? [...dueOrWeak, ...takeUnseen(Math.max(0, Math.min(settings.boardSize, focusedCount) - dueOrWeak.length))]
-        : takeUnseen(Math.min(settings.boardSize, focusedCount));
-    const focusedItems = fillTargetSet(sortByNeed(focusedBase, statsById, randomOrderById), Math.min(settings.boardSize, focusedCount), [...dueOrWeak, ...fallbackReview, ...candidateItems]);
-    const recheckBase = dueOrWeak.length
-        ? [...dueOrWeak.slice(0, Math.min(6, settings.boardSize)), ...takeUnseen(Math.max(0, recheckCount))]
-        : takeUnseen(Math.min(settings.boardSize, recheckCount));
-    const recheckItems = fillTargetSet(sortByNeed(recheckBase, statsById, randomOrderById), Math.min(settings.boardSize, recheckCount), [...dueOrWeak, ...fallbackReview, ...candidateItems]);
-    prompts.push(...takeCycled(broadItems, broadCount, "broad", statsById));
-    prompts.push(...takeCycled(focusedItems, focusedCount, "focused", statsById));
-    prompts.push(...takeCycled(recheckItems, recheckCount, "recheck", statsById));
+        ...takeUnseen(Math.max(0, broadCount - reviewCap)),
+    ], broadCount, [...dueOrWeak, ...fallbackReview, ...candidateItems]);
+    prompts.push(...takeUnique(broadItems, broadCount, "broad", statsById));
     return prompts.map((prompt, index) => ({
         ...prompt,
         index,
@@ -69,13 +57,13 @@ export function getItemsForBatch(plan, currentIndex) {
         .filter((entry) => entry.miniBatchId === current.miniBatchId)
         .map((entry) => entry.item);
 }
-function takeCycled(items, count, phase, statsById) {
+function takeUnique(items, count, phase, statsById) {
     if (!items.length || count <= 0)
         return [];
-    return Array.from({ length: count }, (_, index) => ({
-        item: items[index % items.length],
+    return items.slice(0, count).map((item) => ({
+        item,
         phase,
-        wasNewItem: (statsById.get(items[index % items.length].id)?.attempts ?? 0) === 0,
+        wasNewItem: (statsById.get(item.id)?.attempts ?? 0) === 0,
     }));
 }
 function uniqueItems(items) {
@@ -85,9 +73,6 @@ function fillTargetSet(baseItems, targetSize, fallbackItems) {
     if (targetSize <= 0)
         return [];
     return uniqueItems([...baseItems, ...fallbackItems]).slice(0, targetSize);
-}
-function sortByNeed(items, statsById, randomOrderById) {
-    return [...items].sort((a, b) => compareNeedThenRandom(a, b, statsById, randomOrderById));
 }
 function compareNeedThenRandom(a, b, statsById, randomOrderById) {
     const scoreDifference = (statsById.get(b.id)?.needScore ?? 0) - (statsById.get(a.id)?.needScore ?? 0);

@@ -52,7 +52,7 @@ export function deriveItemStats(item, events = [], thresholdMs) {
     const uniqueFastDays = new Set(fastEvents.map((event) => event.createdAtIso.slice(0, 10))).size;
     const lastEvent = sorted.at(-1);
     const lastSeenAtIso = lastEvent?.createdAtIso;
-    const dueAtIso = computeDueAtIso(lastEvent, uniqueFastDays, recentCorrectRate);
+    const dueAtIso = computeDueAtIso(sorted, lastEvent, uniqueFastDays, recentCorrectRate, thresholdMs);
     const depthLevel = computeDepthLevel(sorted, fastEvents, uniqueFastDays, recentCorrectRate);
     const status = computeStatus(sorted, recent, depthLevel, thresholdMs);
     return {
@@ -103,12 +103,18 @@ function computeStatus(events, recent, depthLevel, thresholdMs) {
         return "learning";
     return "slow";
 }
-function computeDueAtIso(lastEvent, uniqueFastDays, recentCorrectRate) {
+function computeDueAtIso(events, lastEvent, uniqueFastDays, recentCorrectRate, thresholdMs) {
     if (!lastEvent)
         return new Date().toISOString();
+    if (events.length === 1 &&
+        lastEvent.correct &&
+        lastEvent.latencyMs <= thresholdMs &&
+        recentCorrectRate >= 1) {
+        return new Date(Date.parse(lastEvent.createdAtIso) + 30 * DAY_MS).toISOString();
+    }
     const intervals = recentCorrectRate < 0.6
         ? [0, 0, 1, 2, 4, 7]
-        : [0, 1, 2, 4, 7, 14];
+        : [0, 7, 14, 30, 45, 60];
     const days = intervals[Math.min(uniqueFastDays, intervals.length - 1)];
     return new Date(Date.parse(lastEvent.createdAtIso) + days * DAY_MS).toISOString();
 }

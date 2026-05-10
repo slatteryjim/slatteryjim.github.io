@@ -98,7 +98,6 @@ function renderDrill(pack) {
     const prompt = getPrompt(item);
     const elapsed = Math.max(0, Math.round((performance.now() - activeSession.startedAtMs) / 1000));
     const feedback = activeSession.feedback;
-    const isLastPrompt = activeSession.index === activeSession.plan.length - 1;
     const roundProgress = getRoundProgress(activeSession.plan, activeSession.index);
     if (activeSession.currentBatchId !== entry.miniBatchId) {
         activeSession.currentBatchId = entry.miniBatchId;
@@ -134,7 +133,6 @@ function renderDrill(pack) {
         <p>Tap the ${answerLabel(state.settings.drillMode)}</p>
         ${feedback ? feedbackPill(feedback) : ""}
         ${feedback && !feedback.correct ? feedbackDetail(item, feedback) : ""}
-        ${feedback?.correct && isLastPrompt ? `<button class="report-action" data-action="finish">View Report</button>` : ""}
       </section>
 
       <section class="answer-board">
@@ -156,9 +154,6 @@ function renderDrill(pack) {
     bindCommonActions();
     app.querySelectorAll("[data-answer]").forEach((button) => {
         button.addEventListener("click", () => submitAnswer(button.dataset.answer ?? ""));
-    });
-    app.querySelectorAll("[data-action='finish']").forEach((button) => {
-        button.addEventListener("click", finishSession);
     });
 }
 function renderResults(pack, stats) {
@@ -277,7 +272,6 @@ function startSession() {
         currentBatchId: null,
         renderedAtMs: 0,
         feedback: null,
-        pendingReport: false,
     };
     view = "drill";
     scrollToTop();
@@ -294,7 +288,6 @@ function submitAnswer(selectedAnswer) {
         }
         return;
     }
-    const isLastPrompt = activeSession.index === activeSession.plan.length - 1;
     const event = createTrialEvent({
         sessionId: activeSession.id,
         contentPackId: state.settings.selectedPackId,
@@ -312,7 +305,6 @@ function submitAnswer(selectedAnswer) {
     state.trialEvents.push(event);
     activeSession.events.push(event);
     activeSession.feedback = event;
-    activeSession.pendingReport = isLastPrompt;
     saveState(state);
     render();
     if (event.correct) {
@@ -323,18 +315,15 @@ function advanceAfterFeedback(delayMs) {
     window.setTimeout(() => {
         if (!activeSession)
             return;
-        if (activeSession.pendingReport) {
+        maybeAdaptPlanAfterBroadCheck();
+        const nextIndex = activeSession.index + 1;
+        if (nextIndex >= activeSession.plan.length) {
             finishSession();
             return;
         }
-        maybeAdaptPlanAfterBroadCheck();
-        activeSession.index += 1;
+        activeSession.index = nextIndex;
         activeSession.renderedAtMs = 0;
         activeSession.feedback = null;
-        if (activeSession.index >= activeSession.plan.length) {
-            finishSession();
-            return;
-        }
         render();
     }, delayMs);
 }
@@ -343,7 +332,6 @@ function finishSession() {
         activeSession.completedAtIso = new Date().toISOString();
         activeSession.index = activeSession.plan.length;
         activeSession.feedback = null;
-        activeSession.pendingReport = false;
     }
     view = "results";
     scrollToTop();
@@ -354,28 +342,27 @@ function maybeAdaptPlanAfterBroadCheck() {
         return;
     const currentEntry = activeSession.plan[activeSession.index];
     const nextEntry = activeSession.plan[activeSession.index + 1];
-    if (currentEntry?.phase !== "broad" || nextEntry?.phase !== "focused")
+    const isEndOfSurveyRound = currentEntry?.phase === "broad" && (!nextEntry || nextEntry.phase !== "broad");
+    if (!isEndOfSurveyRound)
         return;
     const weakIds = new Set(activeSession.events
         .filter((event) => event.metadata.phase === "broad" &&
         (!event.correct || event.latencyMs > state.settings.thresholdMs))
         .map((event) => event.itemId));
-    if (weakIds.size === 0)
-        return;
     const itemById = new Map(activeSession.plan.map((entry) => [entry.item.id, entry.item]));
     const newFlagById = new Map(activeSession.plan.map((entry) => [entry.item.id, entry.wasNewItem]));
     const weakItems = Array.from(weakIds)
         .map((itemId) => itemById.get(itemId))
         .filter((item) => Boolean(item));
-    if (weakItems.length === 0)
-        return;
     const prefix = activeSession.plan.slice(0, activeSession.index + 1);
-    const oldFocusedItems = uniqueItems(activeSession.plan.filter((entry) => entry.phase === "focused").map((entry) => entry.item));
-    const oldRecheckItems = uniqueItems(activeSession.plan.filter((entry) => entry.phase === "recheck").map((entry) => entry.item));
-    const focusedCount = activeSession.plan.filter((entry) => entry.phase === "focused").length;
-    const recheckCount = activeSession.plan.filter((entry) => entry.phase === "recheck").length;
-    const focusedEntries = cycleEntries(uniqueItems([...weakItems, ...oldFocusedItems]), focusedCount, "focused", newFlagById);
-    const recheckEntries = cycleEntries(uniqueItems([...weakItems, ...oldRecheckItems]), recheckCount, "recheck", newFlagById);
+    if (weakItems.length === 0) {
+        activeSession.plan = prefix.map((entry, index) => ({ ...entry, index }));
+        return;
+    }
+    const focusedCount = Math.min(state.settings.sessionLength, Math.max(weakItems.length * 2, Math.min(state.settings.boardSize, 6)));
+    const recheckCount = Math.min(state.settings.boardSize, weakItems.length);
+    const focusedEntries = cycleEntries(weakItems, focusedCount, "focused", newFlagById, "focused-board");
+    const recheckEntries = cycleEntries(weakItems, recheckCount, "recheck", newFlagById, "recheck-board");
     activeSession.plan = [...prefix, ...focusedEntries, ...recheckEntries].map((entry, index) => ({
         ...entry,
         index,
@@ -718,16 +705,16 @@ function statusLabel(status) {
 }
 function phaseLabel(phase) {
     return {
-        broad: "Broad Check",
-        focused: "Focused Drill",
-        recheck: "Recheck",
+        broad: "Survey",
+        focused: "Review",
+        recheck: "Drill",
     }[phase] ?? "Practice";
 }
 function phaseDescription(phase) {
     return {
-        broad: "Probe a wider set.",
-        focused: "Drill the highest-need items.",
-        recheck: "Retest after a short delay.",
+        broad: "Show each card once to find what is weak.",
+        focused: "Repair the cards that were wrong or slow.",
+        recheck: "Retest the repaired cards after a short delay.",
     }[phase] ?? "Practice";
 }
 function getRoundProgress(plan, currentIndex) {
@@ -741,7 +728,7 @@ function getRoundProgress(plan, currentIndex) {
         count: phaseEntries.length,
     };
 }
-function cycleEntries(items, count, phase, newFlagById) {
+function cycleEntries(items, count, phase, newFlagById, miniBatchId = `${phase}-board`) {
     if (items.length === 0 || count <= 0)
         return [];
     return Array.from({ length: count }, (_, offset) => {
@@ -751,12 +738,9 @@ function cycleEntries(items, count, phase, newFlagById) {
             phase,
             wasNewItem: newFlagById.get(item.id) ?? false,
             index: 0,
-            miniBatchId: `${phase}-board`,
+            miniBatchId,
         };
     });
-}
-function uniqueItems(items) {
-    return Array.from(new Map(items.map((item) => [item.id, item])).values());
 }
 function modeLabel(mode) {
     return {
