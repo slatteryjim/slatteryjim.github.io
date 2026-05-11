@@ -361,12 +361,9 @@ function maybeAdaptPlanAfterBroadCheck() {
     }
     const focusedCount = Math.min(state.settings.sessionLength, Math.max(weakItems.length * 2, Math.min(state.settings.boardSize, 6)));
     const recheckCount = Math.min(state.settings.boardSize, weakItems.length);
-    const focusedEntries = cycleEntries(weakItems, focusedCount, "focused", newFlagById, "focused-board");
-    const recheckEntries = cycleEntries(weakItems, recheckCount, "recheck", newFlagById, "recheck-board");
-    activeSession.plan = [...prefix, ...focusedEntries, ...recheckEntries].map((entry, index) => ({
-        ...entry,
-        index,
-    }));
+    const focusedEntries = cycleEntries(weakItems, focusedCount, "focused", newFlagById);
+    const recheckEntries = cycleEntries(weakItems, recheckCount, "recheck", newFlagById);
+    activeSession.plan = assignMiniBatchIds([...prefix, ...focusedEntries, ...recheckEntries], state.settings.boardSize);
 }
 function updateSettings(nextSettings) {
     state.settings = { ...state.settings, ...nextSettings };
@@ -728,7 +725,7 @@ function getRoundProgress(plan, currentIndex) {
         count: phaseEntries.length,
     };
 }
-function cycleEntries(items, count, phase, newFlagById, miniBatchId = `${phase}-board`) {
+function cycleEntries(items, count, phase, newFlagById) {
     if (items.length === 0 || count <= 0)
         return [];
     return Array.from({ length: count }, (_, offset) => {
@@ -737,8 +734,20 @@ function cycleEntries(items, count, phase, newFlagById, miniBatchId = `${phase}-
             item,
             phase,
             wasNewItem: newFlagById.get(item.id) ?? false,
-            index: 0,
-            miniBatchId,
+        };
+    });
+}
+function assignMiniBatchIds(prompts, boardSize) {
+    const safeBoardSize = Math.max(1, boardSize);
+    const phaseCounts = new Map();
+    return prompts.map((prompt, index) => {
+        const phaseOffset = phaseCounts.get(prompt.phase) ?? 0;
+        phaseCounts.set(prompt.phase, phaseOffset + 1);
+        const batchIndex = Math.floor(phaseOffset / safeBoardSize) + 1;
+        return {
+            ...prompt,
+            index,
+            miniBatchId: `${prompt.phase}-board-${batchIndex}`,
         };
     });
 }

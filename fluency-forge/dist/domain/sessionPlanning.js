@@ -35,11 +35,7 @@ export function createSessionPlan({ pack, stats, drillMode, settings }) {
         ...takeUnseen(Math.max(0, broadCount - reviewCap)),
     ], broadCount, [...dueOrWeak, ...fallbackReview, ...candidateItems]);
     prompts.push(...takeUnique(broadItems, broadCount, "broad", statsById));
-    return prompts.map((prompt, index) => ({
-        ...prompt,
-        index,
-        miniBatchId: `${prompt.phase}-board`,
-    }));
+    return assignMiniBatchIds(prompts, settings.boardSize);
 }
 export function buildAnswerBoard({ pack, drillMode, targetItems, boardSize }) {
     const correctAnswers = uniqueStrings(targetItems.map((item) => getExpectedAnswer(item, drillMode))).slice(0, boardSize);
@@ -65,6 +61,20 @@ function takeUnique(items, count, phase, statsById) {
         phase,
         wasNewItem: (statsById.get(item.id)?.attempts ?? 0) === 0,
     }));
+}
+function assignMiniBatchIds(prompts, boardSize) {
+    const safeBoardSize = Math.max(1, boardSize);
+    const phaseCounts = new Map();
+    return prompts.map((prompt, index) => {
+        const phaseOffset = phaseCounts.get(prompt.phase) ?? 0;
+        phaseCounts.set(prompt.phase, phaseOffset + 1);
+        const batchIndex = Math.floor(phaseOffset / safeBoardSize) + 1;
+        return {
+            ...prompt,
+            index,
+            miniBatchId: `${prompt.phase}-board-${batchIndex}`,
+        };
+    });
 }
 function uniqueItems(items) {
     return Array.from(new Map(items.map((item) => [item.id, item])).values());
