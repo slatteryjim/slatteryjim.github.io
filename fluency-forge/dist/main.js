@@ -3,10 +3,12 @@ import { derivePackStats, getTodayEvents } from "./domain/fluency.js";
 import { buildAnswerBoard, createSessionPlan, getItemsForBatch } from "./domain/sessionPlanning.js";
 import { createTrialEvent, getExpectedAnswer, getPrompt } from "./domain/trials.js";
 import { loadState, resetState, saveState } from "./storage/localStore.js";
+const AVATAR_OPTIONS = ["字", "妮", "山", "星", "猫", "龙", "舟", "火"];
 const app = getRequiredAppRoot();
 let state = loadState();
 let view = "home";
 let activeSession = null;
+let profilePickerOpen = false;
 render();
 function render() {
     const pack = getContentPack(state.settings.selectedPackId);
@@ -249,6 +251,7 @@ function renderResults(pack, stats) {
     bindCommonActions();
     app.querySelector("[data-action='continue']")?.addEventListener("click", () => {
         activeSession = null;
+        profilePickerOpen = false;
         view = "home";
         scrollToTop();
         render();
@@ -257,6 +260,7 @@ function renderResults(pack, stats) {
 function startSession() {
     const pack = getContentPack(state.settings.selectedPackId);
     const stats = currentStats(pack);
+    profilePickerOpen = false;
     activeSession = {
         id: crypto.randomUUID(),
         startedAtMs: performance.now(),
@@ -289,6 +293,7 @@ function submitAnswer(selectedAnswer) {
         return;
     }
     const event = createTrialEvent({
+        learnerId: state.activeLearnerId,
         sessionId: activeSession.id,
         contentPackId: state.settings.selectedPackId,
         item: entry.item,
@@ -375,16 +380,19 @@ function currentStats(pack) {
     return derivePackStats(pack.items, relevantEvents(pack), state.settings.drillMode, state.settings.thresholdMs);
 }
 function relevantEvents(pack) {
-    return state.trialEvents.filter((event) => event.contentPackId === pack.id);
+    return state.trialEvents.filter((event) => event.contentPackId === pack.id && event.learnerId === state.activeLearnerId);
 }
 function pageShell(content) {
+    const learner = activeLearner();
     return `
     <div class="app-shell view-${view}">
       <header class="top-bar">
         <button class="brand" data-action="home" aria-label="Home">
           <span>Fluency</span><strong>Forge</strong>
         </button>
-        <div class="profile-chip"><span>字</span>${escapeHtml(state.settings.learnerName)}</div>
+        <button class="profile-chip" data-action="profile" aria-label="Learner profile">
+          <span>${escapeHtml(learner.avatar)}</span>${escapeHtml(learner.name)}
+        </button>
         <div class="streak-chip">🔥 ${computeStreak()} day streak</div>
         <button class="ghost-button" data-action="results">Results</button>
         <button class="ghost-button" data-action="export">Export</button>
@@ -392,6 +400,7 @@ function pageShell(content) {
         <button class="ghost-button" data-action="reset">Reset</button>
         <input class="hidden-input" type="file" accept="application/json" data-role="import-file">
       </header>
+      ${profilePickerOpen ? profilePanelMarkup() : ""}
       ${content}
     </div>
   `;
@@ -411,6 +420,43 @@ function bindCommonActions() {
             render();
         });
     });
+    app.querySelectorAll("[data-action='profile']").forEach((button) => {
+        button.addEventListener("click", () => {
+            if (view === "drill" && activeSession) {
+                alert("Finish this session before switching learners.");
+                return;
+            }
+            profilePickerOpen = !profilePickerOpen;
+            render();
+        });
+    });
+    app.querySelectorAll("[data-action='close-profile']").forEach((button) => {
+        button.addEventListener("click", () => {
+            profilePickerOpen = false;
+            render();
+        });
+    });
+    app.querySelectorAll("[data-learner-id]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const learnerId = button.dataset.learnerId;
+            if (learnerId)
+                switchLearner(learnerId);
+        });
+    });
+    app.querySelector("[data-role='profile-name']")?.addEventListener("change", (event) => {
+        const value = event.currentTarget.value;
+        updateActiveLearner({ name: value || "Learner" });
+    });
+    app.querySelectorAll("[data-avatar]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const avatar = button.dataset.avatar;
+            if (avatar)
+                updateActiveLearner({ avatar });
+        });
+    });
+    app.querySelectorAll("[data-action='add-learner']").forEach((button) => {
+        button.addEventListener("click", addLearner);
+    });
     app.querySelectorAll("[data-action='reset']").forEach((button) => {
         button.addEventListener("click", () => {
             if (!confirm("Clear all local Fluency Forge progress?"))
@@ -418,6 +464,7 @@ function bindCommonActions() {
             resetState();
             state = loadState();
             activeSession = null;
+            profilePickerOpen = false;
             view = "home";
             scrollToTop();
             render();
@@ -467,6 +514,7 @@ async function importProgress(file) {
         }
         state = importedState;
         activeSession = null;
+        profilePickerOpen = false;
         view = "home";
         saveState(state);
         scrollToTop();
@@ -486,6 +534,10 @@ function extractImportedState(value) {
     const maybeState = candidate;
     if (!maybeState.settings || !Array.isArray(maybeState.trialEvents))
         return null;
+    const learners = sanitizeImportedLearners(maybeState);
+    const activeLearnerId = learners.some((learner) => learner.id === maybeState.activeLearnerId)
+        ? maybeState.activeLearnerId
+        : learners[0].id;
     return {
         settings: {
             ...state.settings,
@@ -494,8 +546,105 @@ function extractImportedState(value) {
                 ? maybeState.settings.drillMode
                 : state.settings.drillMode,
         },
+        learners,
+        activeLearnerId,
         trialEvents: maybeState.trialEvents,
     };
+}
+function activeLearner() {
+    return state.learners.find((learner) => learner.id === state.activeLearnerId) ?? state.learners[0];
+}
+function updateActiveLearner(next) {
+    const learner = activeLearner();
+    state.learners = state.learners.map((entry) => entry.id === learner.id
+        ? {
+            ...entry,
+            ...next,
+            name: typeof next.name === "string" ? next.name.trim() || entry.name : entry.name,
+        }
+        : entry);
+    saveState(state);
+    render();
+}
+function switchLearner(learnerId) {
+    if (!state.learners.some((learner) => learner.id === learnerId))
+        return;
+    state.activeLearnerId = learnerId;
+    activeSession = null;
+    profilePickerOpen = false;
+    view = "home";
+    saveState(state);
+    scrollToTop();
+    render();
+}
+function addLearner() {
+    const learnerNumber = state.learners.length + 1;
+    const learner = {
+        id: crypto.randomUUID(),
+        name: `Learner ${learnerNumber}`,
+        avatar: AVATAR_OPTIONS[(learnerNumber - 1) % AVATAR_OPTIONS.length],
+    };
+    state.learners = [...state.learners, learner];
+    state.activeLearnerId = learner.id;
+    saveState(state);
+    render();
+}
+function profilePanelMarkup() {
+    const learner = activeLearner();
+    return `
+    <section class="profile-panel">
+      <div class="profile-panel-header">
+        <div>
+          <h2>Learners</h2>
+          <p>Switch profiles or personalize this learner.</p>
+        </div>
+        <button class="ghost-button profile-close" data-action="close-profile">Close</button>
+      </div>
+      <div class="profile-learner-list">
+        ${state.learners.map((entry) => `
+          <button class="learner-pill ${entry.id === learner.id ? "active" : ""}" data-learner-id="${entry.id}">
+            <span>${escapeHtml(entry.avatar)}</span>
+            <strong>${escapeHtml(entry.name)}</strong>
+          </button>
+        `).join("")}
+        <button class="learner-pill add" data-action="add-learner">
+          <span>+</span>
+          <strong>Add learner</strong>
+        </button>
+      </div>
+      <label class="profile-field">
+        <span>Name</span>
+        <input type="text" value="${escapeAttr(learner.name)}" data-role="profile-name" maxlength="24">
+      </label>
+      <div class="profile-field">
+        <span>Avatar</span>
+        <div class="avatar-grid">
+          ${AVATAR_OPTIONS.map((avatar) => `
+            <button class="avatar-option ${avatar === learner.avatar ? "active" : ""}" data-avatar="${escapeAttr(avatar)}">
+              ${escapeHtml(avatar)}
+            </button>
+          `).join("")}
+        </div>
+      </div>
+    </section>
+  `;
+}
+function sanitizeImportedLearners(maybeState) {
+    if (Array.isArray(maybeState.learners) && maybeState.learners.length > 0) {
+        const learners = maybeState.learners
+            .filter((entry) => Boolean(entry && typeof entry.id === "string" && typeof entry.name === "string" && typeof entry.avatar === "string"))
+            .map((entry) => ({
+            id: entry.id,
+            name: entry.name.trim() || "Learner",
+            avatar: entry.avatar.trim() || "字",
+        }));
+        if (learners.length > 0)
+            return learners;
+    }
+    const legacyName = typeof maybeState.settings?.learnerName === "string"
+        ? (maybeState.settings.learnerName?.trim() || "Alex")
+        : "Alex";
+    return [{ id: "default", name: legacyName, avatar: "字" }];
 }
 function packCard(pack, stats) {
     const selected = pack.id === state.settings.selectedPackId;
@@ -879,7 +1028,9 @@ function ledgerLineYs(step, noteY) {
     return lines.filter((y) => Math.abs(y - noteY) < 56);
 }
 function computeStreak() {
-    const days = new Set(state.trialEvents.map((event) => event.createdAtIso.slice(0, 10)));
+    const days = new Set(state.trialEvents
+        .filter((event) => event.learnerId === state.activeLearnerId)
+        .map((event) => event.createdAtIso.slice(0, 10)));
     if (days.size === 0)
         return 0;
     let streak = 0;
